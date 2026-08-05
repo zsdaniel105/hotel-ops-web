@@ -5,7 +5,9 @@ export type Room = {
 
 export type TodoType = "HOUSEKEEPING_REQUEST" | "MAINTENANCE_ISSUE";
 
-export type TodoStatus = "OPEN";
+export type TodoStatus = "OPEN" | "COMPLETED";
+
+export type DemoRole = "FRONT_DESK" | "HOUSEKEEPING_SUPERVISOR" | "MAINTENANCE_MANAGER";
 
 export type Todo = {
   id: string;
@@ -16,6 +18,8 @@ export type Todo = {
   note: string | null;
   status: TodoStatus;
   createdAt: string;
+  completedAt: string | null;
+  completedBy: string | null;
 };
 
 export type LogBookEntry = {
@@ -28,7 +32,7 @@ export type LogBookEntry = {
 };
 
 export type PrototypeState = {
-  version: 1;
+  version: 2;
   todos: Todo[];
   logEntries: LogBookEntry[];
 };

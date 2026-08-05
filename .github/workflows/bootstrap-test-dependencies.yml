@@ -1,9 +1,9 @@
 name: Bootstrap hotel operations test dependencies
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - fix/add-missing-test-dependencies
 
 permissions:
   contents: write
@@ -26,8 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           test "${GITHUB_REPOSITORY}" = "zsdaniel105/hotel-ops-web"
-          SOURCE_BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          test "${SOURCE_BRANCH}" = "fix/add-missing-test-dependencies"
+          test "${GITHUB_REF_NAME}" = "fix/add-missing-test-dependencies"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

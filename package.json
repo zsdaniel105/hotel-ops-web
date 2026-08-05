@@ -7,7 +7,8 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "start": "next start"
+    "start": "next start",
+    "check": "npm run lint && npm run typecheck && npm run build"
   },
   "engines": {
     "node": "24.x"

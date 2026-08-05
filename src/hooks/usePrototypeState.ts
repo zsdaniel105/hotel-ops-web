@@ -85,6 +85,11 @@ export function usePrototypeState() {
       }
 
       const completedTodo = completeTodoRecord(todo, ROLE_LABELS[role]);
+
+      if (!completedTodo) {
+        return null;
+      }
+
       const nextState: PrototypeState = {
         version: 3,
         todos: currentState.todos.map((item) => (item.id === todoId ? completedTodo : item)),
@@ -106,7 +111,12 @@ export function usePrototypeState() {
         return null;
       }
 
-      const deletedTodo = deleteTodoRecord(todo);
+      const deletedTodo = deleteTodoRecord(todo, "Front Desk");
+
+      if (!deletedTodo) {
+        return null;
+      }
+
       const nextState: PrototypeState = {
         version: 3,
         todos: currentState.todos.map((item) => (item.id === todoId ? deletedTodo : item)),

@@ -38,3 +38,36 @@ button, a {
     min-height: 2.25rem;
   }
 }
+
+.panel {
+  border-radius: 0.75rem;
+  border: 1px solid rgb(226 232 240);
+  background: white;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgb(2 6 23);
+}
+
+.btn-primary, .btn-secondary, .btn-danger {
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.btn-primary {
+  background: rgb(17 94 89);
+  color: white;
+}
+
+.btn-primary:hover { background: rgb(19 78 74); }
+.btn-secondary { border: 1px solid rgb(203 213 225); color: rgb(51 65 85); background: white; }
+.btn-secondary:hover { background: rgb(248 250 252); }
+.btn-danger { border: 1px solid rgb(252 165 165); background: rgb(254 242 242); color: rgb(185 28 28); }
+.btn-primary:focus, .btn-secondary:focus, .btn-danger:focus { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 2px rgb(20 184 166); }

@@ -1,133 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadPrototypeState, savePrototypeState, SEEDED_PROTOTYPE_STATE } from "@/lib/prototype-storage";
-import {
-  completeTodo as completeTodoRecord,
-  createCompletionLogEntry,
-  createDeletionLogEntry,
-  createTodo,
-  createTodoLogEntry,
-  createUpdateLogEntry,
-  deleteTodo as deleteTodoRecord,
-  ROLE_LABELS,
-  updateTodoRecord,
-  type TodoDraft,
-  type TodoUpdate,
-} from "@/lib/todos";
+import { cancelTodo as cancelTodoRecord, completeTodo as completeTodoRecord, createCancellationLogEntry, createCompletionLogEntry, createDeletionLogEntry, createReopenLogEntry, createStartLogEntry, createTodo, createTodoLogEntry, createUnableLogEntry, createUpdateLogEntry, deleteTodo as deleteTodoRecord, markTodoUnable as markTodoUnableRecord, reopenTodo as reopenTodoRecord, ROLE_LABELS, startTodo as startTodoRecord, updateTodoRecord, type TodoDraft, type TodoUpdate } from "@/lib/todos";
 import type { DemoRole, PrototypeState, Todo } from "@/types/hotel-operations";
 
-export function usePrototypeState() {
+export function usePrototypeState(): { state: PrototypeState; addTodo: (draft: TodoDraft) => Todo; updateTodo: (todoId: string, draft: TodoUpdate) => Todo | null; startTodo: (todoId: string, role: DemoRole) => Todo | null; completeTodo: (todoId: string, role: DemoRole, resolutionNote?: string) => Todo | null; markTodoUnable: (todoId: string, role: DemoRole, reason: string, note: string) => Todo | null; reopenTodo: (todoId: string) => Todo | null; cancelTodo: (todoId: string, reason: string) => Todo | null; deleteTodo: (todoId: string) => Todo | null } {
   const [state, setState] = useState<PrototypeState>(SEEDED_PROTOTYPE_STATE);
   const stateRef = useRef<PrototypeState>(SEEDED_PROTOTYPE_STATE);
-
-  const commitState = useCallback((nextState: PrototypeState) => {
-    stateRef.current = nextState;
-    savePrototypeState(nextState);
-    setState(nextState);
-  }, []);
-
-  useEffect(() => {
-    const loadedState = loadPrototypeState();
-    stateRef.current = loadedState;
-    setState(loadedState);
-  }, []);
-
-  const addTodo = useCallback(
-    (draft: TodoDraft): Todo => {
-      const currentState = stateRef.current;
-      const todo = createTodo(draft);
-      const logEntry = createTodoLogEntry(todo);
-      const nextState: PrototypeState = {
-        version: 3,
-        todos: [todo, ...currentState.todos],
-        logEntries: [logEntry, ...currentState.logEntries],
-      };
-
-      commitState(nextState);
-      return todo;
-    },
-    [commitState],
-  );
-
-  const updateTodo = useCallback(
-    (todoId: string, draft: TodoUpdate): Todo | null => {
-      const currentState = stateRef.current;
-      const before = currentState.todos.find((todo) => todo.id === todoId && todo.status !== "DELETED");
-
-      if (!before) {
-        return null;
-      }
-
-      const after = updateTodoRecord(before, draft, "Front Desk");
-
-      if (!after) {
-        return null;
-      }
-
-      const nextState: PrototypeState = {
-        version: 3,
-        todos: currentState.todos.map((todo) => (todo.id === todoId ? after : todo)),
-        logEntries: [createUpdateLogEntry(before, after), ...currentState.logEntries],
-      };
-
-      commitState(nextState);
-      return after;
-    },
-    [commitState],
-  );
-
-  const completeTodo = useCallback(
-    (todoId: string, role: DemoRole): Todo | null => {
-      const currentState = stateRef.current;
-      const todo = currentState.todos.find((item) => item.id === todoId && item.status === "OPEN");
-
-      if (!todo) {
-        return null;
-      }
-
-      const completedTodo = completeTodoRecord(todo, ROLE_LABELS[role]);
-
-      if (!completedTodo) {
-        return null;
-      }
-
-      const nextState: PrototypeState = {
-        version: 3,
-        todos: currentState.todos.map((item) => (item.id === todoId ? completedTodo : item)),
-        logEntries: [createCompletionLogEntry(completedTodo), ...currentState.logEntries],
-      };
-
-      commitState(nextState);
-      return completedTodo;
-    },
-    [commitState],
-  );
-
-  const deleteTodo = useCallback(
-    (todoId: string): Todo | null => {
-      const currentState = stateRef.current;
-      const todo = currentState.todos.find((item) => item.id === todoId && item.status !== "DELETED");
-
-      if (!todo) {
-        return null;
-      }
-
-      const deletedTodo = deleteTodoRecord(todo, "Front Desk");
-
-      if (!deletedTodo) {
-        return null;
-      }
-
-      const nextState: PrototypeState = {
-        version: 3,
-        todos: currentState.todos.map((item) => (item.id === todoId ? deletedTodo : item)),
-        logEntries: [createDeletionLogEntry(deletedTodo), ...currentState.logEntries],
-      };
-
-      commitState(nextState);
-      return deletedTodo;
-    },
-    [commitState],
-  );
-
-  return { state, addTodo, updateTodo, completeTodo, deleteTodo };
+  const commitState = useCallback((nextState: PrototypeState): void => { stateRef.current = nextState; savePrototypeState(nextState); setState(nextState); }, []);
+  useEffect(() => { const loadedState = loadPrototypeState(); stateRef.current = loadedState; setState(loadedState); }, []);
+  const commitTodo = useCallback((todoId: string, nextTodo: Todo, logEntry: PrototypeState["logEntries"][number]): Todo => { const currentState = stateRef.current; const nextState: PrototypeState = { version: 4, todos: currentState.todos.map((todo) => (todo.id === todoId ? nextTodo : todo)), logEntries: [logEntry, ...currentState.logEntries] }; commitState(nextState); return nextTodo; }, [commitState]);
+  const addTodo = useCallback((draft: TodoDraft): Todo => { const currentState = stateRef.current; const todo = createTodo(draft); const nextState: PrototypeState = { version: 4, todos: [todo, ...currentState.todos], logEntries: [createTodoLogEntry(todo), ...currentState.logEntries] }; commitState(nextState); return todo; }, [commitState]);
+  const updateTodo = useCallback((todoId: string, draft: TodoUpdate): Todo | null => { const before = stateRef.current.todos.find((todo) => todo.id === todoId && todo.status !== "DELETED"); if (!before) return null; const after = updateTodoRecord(before, draft, "Front Desk"); return after ? commitTodo(todoId, after, createUpdateLogEntry(before, after)) : null; }, [commitTodo]);
+  const startTodo = useCallback((todoId: string, role: DemoRole): Todo | null => { const todo = stateRef.current.todos.find((item) => item.id === todoId); if (!todo) return null; const started = startTodoRecord(todo, role); return started ? commitTodo(todoId, started, createStartLogEntry(started)) : null; }, [commitTodo]);
+  const completeTodo = useCallback((todoId: string, role: DemoRole, resolutionNote?: string): Todo | null => { const todo = stateRef.current.todos.find((item) => item.id === todoId); if (!todo) return null; const completed = completeTodoRecord(todo, role, resolutionNote); return completed ? commitTodo(todoId, completed, createCompletionLogEntry(completed)) : null; }, [commitTodo]);
+  const markTodoUnable = useCallback((todoId: string, role: DemoRole, reason: string, note: string): Todo | null => { const todo = stateRef.current.todos.find((item) => item.id === todoId); if (!todo) return null; const unable = markTodoUnableRecord(todo, role, reason, note); return unable ? commitTodo(todoId, unable, createUnableLogEntry(unable)) : null; }, [commitTodo]);
+  const reopenTodo = useCallback((todoId: string): Todo | null => { const todo = stateRef.current.todos.find((item) => item.id === todoId); if (!todo) return null; const reopened = reopenTodoRecord(todo, "FRONT_DESK"); return reopened ? commitTodo(todoId, reopened, createReopenLogEntry(reopened)) : null; }, [commitTodo]);
+  const cancelTodo = useCallback((todoId: string, reason: string): Todo | null => { const todo = stateRef.current.todos.find((item) => item.id === todoId); if (!todo) return null; const cancelled = cancelTodoRecord(todo, "FRONT_DESK", reason); return cancelled ? commitTodo(todoId, cancelled, createCancellationLogEntry(cancelled)) : null; }, [commitTodo]);
+  const deleteTodo = useCallback((todoId: string): Todo | null => { const todo = stateRef.current.todos.find((item) => item.id === todoId && item.status !== "DELETED"); if (!todo) return null; const deletedTodo = deleteTodoRecord(todo, ROLE_LABELS.FRONT_DESK); return deletedTodo ? commitTodo(todoId, deletedTodo, createDeletionLogEntry(deletedTodo)) : null; }, [commitTodo]);
+  return { state, addTodo, updateTodo, startTodo, completeTodo, markTodoUnable, reopenTodo, cancelTodo, deleteTodo };
 }

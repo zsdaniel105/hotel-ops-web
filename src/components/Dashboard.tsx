@@ -1,251 +1,105 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildRooms, groupRoomsByFloor, OPEN_ITEM_ROOMS, type Room } from "@/lib/rooms";
-
-const logEntries = [
-  { time: "10:24 AM", room: "Room 204", message: "Two towel sets requested.", category: "Guest request" },
-  { time: "9:48 AM", room: "Room 317", message: "Maintenance issue remains open.", category: "Maintenance" },
-  { time: "8:15 AM", room: null, message: "Night audit completed with no escalations.", category: "Shift note" },
-  { time: "7:40 AM", room: "Room 508", message: "Missing robe flagged for supervisor review.", category: "Housekeeping" },
-  { time: "7:05 AM", room: null, message: "Breakfast staffing confirmed for the morning rush.", category: "Operations" },
-];
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { usePrototypeState } from "@/hooks/usePrototypeState";
+import { buildRooms, filterRoomsByNumber, groupRoomsByFloor } from "@/lib/rooms";
+import { getOpenTodoCounts, getRoomOperationalIndicators, getTodoTypeLabel, getTodosForRoom, HOUSEKEEPING_OPTIONS, MAINTENANCE_OPTIONS, type TodoDraft } from "@/lib/todos";
+import type { LogBookEntry, Room, Todo, TodoType } from "@/types/hotel-operations";
 
 const announcements = [
   { title: "Pool deck closes at 9:00 PM tonight.", meta: "Guest services" },
   { title: "Quiet-hours reminder for team handoff.", meta: "Front Desk" },
   { title: "VIP arrivals require manager greeting.", meta: "Today" },
 ];
-
 const calendarEvents = [
   { event: "Staff meeting", time: "Friday, 2:00 PM" },
   { event: "Linen delivery", time: "Monday, 9:00 AM" },
   { event: "Pool maintenance", time: "Tuesday, 7:00 AM" },
 ];
+type FormPreset = { roomNumber?: number; type?: TodoType };
+
+type TodoFormValues = { roomNumber: string; type: "" | TodoType; details: string; customDetails: string; quantity: string; note: string };
+type TodoFormErrors = Partial<Record<keyof TodoFormValues, string>>;
 
 export function Dashboard() {
   const rooms = useMemo(() => buildRooms(), []);
-  const roomsByFloor = useMemo(() => groupRoomsByFloor(rooms), [rooms]);
+  const { state, addTodo } = usePrototypeState();
+  const counts = useMemo(() => getOpenTodoCounts(state.todos), [state.todos]);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [headerFormOpen, setHeaderFormOpen] = useState(false);
+  const [headerPreset, setHeaderPreset] = useState<FormPreset>({});
+  const [successMessage, setSuccessMessage] = useState("");
   const selectedRoomButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const openItemCount = OPEN_ITEM_ROOMS.length;
-
-  function openRoom(room: Room, button: HTMLButtonElement) {
-    selectedRoomButtonRef.current = button;
-    setSelectedRoom(room);
+  function handleCreateTodo(draft: TodoDraft) {
+    const todo = addTodo(draft);
+    setSuccessMessage(`To-do created for Room ${todo.roomNumber}.`);
+    return todo;
   }
-
-  function closeRoom() {
-    setSelectedRoom(null);
-    window.requestAnimationFrame(() => selectedRoomButtonRef.current?.focus());
-  }
+  function openRoom(room: Room, button: HTMLButtonElement) { selectedRoomButtonRef.current = button; setSelectedRoom(room); }
+  function closeRoom() { setSelectedRoom(null); window.requestAnimationFrame(() => selectedRoomButtonRef.current?.focus()); }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <AppHeader />
+      <AppHeader rooms={rooms} open={headerFormOpen} preset={headerPreset} onOpenChange={setHeaderFormOpen} onCreate={handleCreateTodo} onPresetChange={setHeaderPreset} />
+      <div className="sr-only" role="status" aria-live="polite">{successMessage}</div>
       <main className="mx-auto w-full max-w-[1480px] space-y-4 px-4 py-4 lg:px-6 lg:py-5">
         <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between" aria-labelledby="dashboard-title">
-          <div>
-            <h1 id="dashboard-title" className="text-2xl font-bold tracking-tight text-slate-950 sm:text-[26px]">Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-600">Front Desk operational overview</p>
-          </div>
-          <dl className="flex flex-wrap gap-2 text-xs font-medium text-slate-700">
-            <SummaryStat label="Rooms" value={rooms.length.toString()} />
-            <SummaryStat label="Open items" value={openItemCount.toString()} tone="alert" />
-          </dl>
+          <div><h1 id="dashboard-title" className="text-2xl font-bold tracking-tight text-slate-950 sm:text-[26px]">Dashboard</h1><p className="mt-1 text-sm text-slate-600">Front Desk operational overview</p></div>
+          <dl className="flex flex-wrap gap-2 text-xs font-medium text-slate-700"><SummaryStat label="Rooms" value={rooms.length.toString()} /><SummaryStat label="Open to-dos" value={counts.total.toString()} tone="alert" /><SummaryStat label="Housekeeping" value={counts.housekeeping.toString()} /><SummaryStat label="Maintenance" value={counts.maintenance.toString()} /></dl>
         </section>
-
-        <RoomBoard roomsByFloor={roomsByFloor} totalRooms={rooms.length} openItemCount={openItemCount} onSelectRoom={openRoom} />
-        <OperationsPanels />
+        <RoomBoard rooms={rooms} todos={state.todos} counts={counts.total} onSelectRoom={openRoom} />
+        <OperationsPanels logEntries={state.logEntries} />
       </main>
-
-      {selectedRoom ? <RoomDialog room={selectedRoom} onClose={closeRoom} /> : null}
+      {selectedRoom ? <RoomDialog room={selectedRoom} rooms={rooms} todos={state.todos} onCreate={handleCreateTodo} onClose={closeRoom} /> : null}
     </div>
   );
 }
 
-function AppHeader() {
-  return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-[1480px] items-center justify-between px-4 lg:px-6">
-        <div className="flex items-center gap-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-teal-800 text-sm font-black text-white" aria-hidden="true">HO</span>
-          <div className="leading-tight">
-            <p className="text-sm font-bold text-slate-950">Hotel Operations</p>
-            <p className="text-xs text-slate-500">Dashboard</p>
-          </div>
-        </div>
-        <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">Prototype</span>
-      </div>
-    </header>
-  );
-}
-
-function SummaryStat({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "alert" }) {
-  return (
-    <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 ${tone === "alert" ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white"}`}>
-      <dt>{label}</dt>
-      <dd className="font-bold">{value}</dd>
-    </div>
-  );
-}
-
-function RoomBoard({ roomsByFloor, totalRooms, openItemCount, onSelectRoom }: { roomsByFloor: Record<number, Room[]>; totalRooms: number; openItemCount: number; onSelectRoom: (room: Room, button: HTMLButtonElement) => void }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="rooms-title">
-      <div className="flex flex-col gap-2 border-b border-slate-200 pb-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 id="rooms-title" className="text-base font-bold text-slate-950">Rooms</h2>
-          <p className="text-xs text-slate-500">{totalRooms} rooms across {Object.keys(roomsByFloor).length} floors · {openItemCount} open items</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600" aria-label="Room status legend">
-          <LegendItem status="Clear" />
-          <LegendItem status="Open item" />
-        </div>
-      </div>
-
-      <div className="mt-3 max-h-[420px] space-y-3 overflow-y-auto pr-1">
-        {Object.entries(roomsByFloor).map(([floor, floorRooms]) => (
-          <section key={floor} className="border-b border-slate-100 pb-3 last:border-b-0 last:pb-0" aria-labelledby={`floor-${floor}`}>
-            <div className="mb-2 flex items-center gap-2">
-              <h3 id={`floor-${floor}`} className="text-xs font-bold uppercase tracking-wide text-slate-600">Floor {floor}</h3>
-              <span className="h-px flex-1 bg-slate-100" aria-hidden="true" />
-              <span className="text-[11px] text-slate-500">{floorRooms.length}</span>
-            </div>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(54px,1fr))] gap-2 sm:grid-cols-[repeat(auto-fit,minmax(58px,1fr))] xl:grid-cols-[repeat(auto-fit,minmax(62px,1fr))]">
-              {floorRooms.map((room) => (
-                <RoomTile key={room.number} room={room} onSelectRoom={onSelectRoom} />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function RoomTile({ room, onSelectRoom }: { room: Room; onSelectRoom: (room: Room, button: HTMLButtonElement) => void }) {
-  const isOpen = room.status === "Open item";
-  return (
-    <button
-      type="button"
-      onClick={(event) => onSelectRoom(room, event.currentTarget)}
-      className={`flex min-h-12 flex-col justify-between rounded-lg border px-2 py-1.5 text-left text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 sm:h-14 ${isOpen ? "border-red-300 bg-red-50 text-red-950 hover:bg-red-100" : "border-slate-200 bg-slate-50 text-slate-800 hover:border-teal-300 hover:bg-teal-50"}`}
-      aria-label={`Room ${room.number}, ${room.status.toLowerCase()}`}
-    >
-      <span>{room.number}</span>
-      <StatusIndicator status={room.status} compact />
-    </button>
-  );
-}
-
-function LegendItem({ status }: { status: Room["status"] }) {
-  return <span className="inline-flex items-center gap-1.5"><StatusIndicator status={status} />{status}</span>;
-}
-
-function StatusIndicator({ status, compact = false }: { status: Room["status"]; compact?: boolean }) {
-  const isClear = status === "Clear";
-  return (
-    <span className={`inline-grid place-items-center rounded-[3px] text-[9px] font-black leading-none text-white ${compact ? "size-2.5" : "size-3"} ${isClear ? "bg-green-600" : "bg-red-600"}`} aria-label={status} title={status}>
-      <span aria-hidden="true">{isClear ? "✓" : "!"}</span>
-    </span>
-  );
-}
-
-function OperationsPanels() {
-  return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]" aria-label="Operational panels">
-      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="logbook-title">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 id="logbook-title" className="text-base font-bold text-slate-950">Log Book</h2>
-          <span className="text-xs font-medium text-slate-500">Shift activity</span>
-        </div>
-        <div className="max-h-72 overflow-y-auto">
-          {logEntries.map((entry) => (
-            <div key={`${entry.time}-${entry.message}`} className="grid gap-2 border-t border-slate-100 py-2.5 text-sm first:border-t-0 sm:grid-cols-[78px_92px_minmax(0,1fr)_120px]">
-              <time className="font-semibold text-slate-700">{entry.time}</time>
-              <span className="text-xs font-medium text-slate-500">{entry.room ?? "Property"}</span>
-              <p className="text-slate-700">{entry.message}</p>
-              <span className="text-xs text-slate-500 sm:text-right">{entry.category}</span>
-            </div>
-          ))}
-        </div>
-      </article>
-
-      <aside className="space-y-4">
-        <CompactCard title="Lost & Found" meta="3 items" action="View items — Coming next">
-          <p>Tagged items are awaiting owner contact.</p>
-        </CompactCard>
-        <CompactCard title="Announcements" meta="3 posts">
-          <div className="divide-y divide-slate-100">
-            {announcements.map((announcement) => (
-              <p key={announcement.title} className="py-2 first:pt-0 last:pb-0"><span className="font-medium text-slate-800">{announcement.title}</span><span className="mt-0.5 block text-xs text-slate-500">{announcement.meta}</span></p>
-            ))}
-          </div>
-        </CompactCard>
-        <CompactCard title="Calendar" meta="Today">
-          <div className="space-y-2">
-            {calendarEvents.map((item) => (
-              <p key={item.event} className="flex items-start justify-between gap-3 text-sm"><span className="font-medium text-slate-800">{item.event}</span><span className="text-right text-xs text-slate-500">{item.time}</span></p>
-            ))}
-          </div>
-        </CompactCard>
-      </aside>
-    </section>
-  );
-}
-
-function CompactCard({ title, meta, action, children }: { title: string; meta: string; action?: string; children: ReactNode }) {
-  return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-950">{title}</h2>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{meta}</span>
-      </div>
-      {children}
-      {action ? <button type="button" className="mt-3 min-h-8 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-500" aria-disabled="true">{action}</button> : null}
-    </article>
-  );
-}
-
-function RoomDialog({ room, onClose }: { room: Room; onClose: () => void }) {
+function AppHeader({ rooms, open, preset, onOpenChange, onCreate, onPresetChange }: { rooms: Room[]; open: boolean; preset: FormPreset; onOpenChange: (open: boolean) => void; onCreate: (draft: TodoDraft) => void; onPresetChange: (preset: FormPreset) => void }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null); const popoverRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-3 sm:items-stretch sm:justify-end" role="presentation" onMouseDown={onClose}>
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="room-dialog-title"
-        className="w-full rounded-2xl bg-white p-4 shadow-xl sm:my-3 sm:max-w-[420px] sm:rounded-xl"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Room details</p>
-            <h2 id="room-dialog-title" className="mt-1 text-2xl font-bold text-slate-950">Room {room.number}</h2>
-          </div>
-          <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-h-9">
-            Close
-          </button>
-        </div>
-        <div className="mt-4 space-y-4 text-sm text-slate-700">
-          <div className="flex items-center gap-2"><StatusIndicator status={room.status} /><span className="font-semibold">{room.status}</span></div>
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3">{room.note}</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <button type="button" className="min-h-11 rounded-lg bg-teal-900 px-3 text-sm font-semibold text-white opacity-70 sm:min-h-9" aria-disabled="true">Housekeeping request — Coming next</button>
-            <button type="button" className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-600 opacity-70 sm:min-h-9" aria-disabled="true">Maintenance issue — Coming next</button>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) { if (event.key === "Escape") { onOpenChange(false); triggerRef.current?.focus(); } }
+    function onPointerDown(event: PointerEvent) { if (!popoverRef.current?.contains(event.target as Node) && !triggerRef.current?.contains(event.target as Node)) { onOpenChange(false); triggerRef.current?.focus(); } }
+    document.addEventListener("keydown", onKeyDown); document.addEventListener("pointerdown", onPointerDown);
+    return () => { document.removeEventListener("keydown", onKeyDown); document.removeEventListener("pointerdown", onPointerDown); };
+  }, [open, onOpenChange]);
+  return <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="relative mx-auto flex min-h-14 max-w-[1480px] items-center justify-between gap-3 px-4 py-2 lg:px-6"><div className="flex items-center gap-3"><span className="grid size-8 place-items-center rounded-lg bg-teal-800 text-sm font-black text-white" aria-hidden="true">HO</span><div className="leading-tight"><p className="text-sm font-bold text-slate-950">Hotel Operations</p><p className="text-xs text-slate-500">Dashboard</p></div></div><div className="flex items-center gap-2"><button ref={triggerRef} type="button" onClick={() => { onPresetChange({}); onOpenChange(!open); }} className="min-h-11 rounded-lg bg-teal-800 px-3 text-sm font-semibold text-white hover:bg-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 sm:min-h-8">Create To-do</button><span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">Prototype</span></div>{open ? <div ref={popoverRef} className="absolute right-4 top-[calc(100%+0.5rem)] w-[calc(100vw-2rem)] max-w-[400px] rounded-xl border border-slate-200 bg-white p-3 shadow-lg" role="dialog" aria-label="Create to-do"><TodoForm rooms={rooms} preset={preset} onCancel={() => { onOpenChange(false); triggerRef.current?.focus(); }} onCreate={(draft) => { onCreate(draft); onOpenChange(false); triggerRef.current?.focus(); }} /></div> : null}</div></header>;
 }
+
+function SummaryStat({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "alert" }) { return <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 ${tone === "alert" ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white"}`}><dt>{label}</dt><dd className="font-bold">{value}</dd></div>; }
+
+function RoomBoard({ rooms, todos, counts, onSelectRoom }: { rooms: Room[]; todos: Todo[]; counts: number; onSelectRoom: (room: Room, button: HTMLButtonElement) => void }) {
+  const [query, setQuery] = useState(""); const filteredRooms = useMemo(() => filterRoomsByNumber(rooms, query), [rooms, query]); const roomsByFloor = useMemo(() => groupRoomsByFloor(filteredRooms), [filteredRooms]);
+  return <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="rooms-title"><div className="flex flex-col gap-2 border-b border-slate-200 pb-3 md:flex-row md:items-center md:justify-between"><div><h2 id="rooms-title" className="text-base font-bold text-slate-950">Rooms</h2><p className="text-xs text-slate-500">{rooms.length} rooms across {new Set(rooms.map((room) => room.floor)).size} floors · {counts} open to-dos</p></div><div className="flex flex-wrap items-center gap-3 text-xs text-slate-600" aria-label="Room status legend"><span>No indicator — No active item</span><LegendIndicator type="housekeeping" /> <span>Housekeeping request</span><LegendIndicator type="maintenance" /> <span>Maintenance issue</span></div></div><div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><label className="grid gap-1 text-xs font-semibold text-slate-700 sm:w-72">Search rooms<input inputMode="numeric" value={query} onChange={(event) => setQuery(event.target.value.replace(/[^0-9\s]/g, ""))} placeholder="Search room number" className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-h-9" /></label><div className="flex items-center gap-3 text-xs text-slate-500">{query.trim() ? <span>{filteredRooms.length} result{filteredRooms.length === 1 ? "" : "s"}</span> : null}{query ? <button type="button" onClick={() => setQuery("")} className="min-h-9 rounded-lg border border-slate-200 px-3 font-semibold text-slate-700 hover:bg-slate-50">Clear</button> : null}</div></div><div className="mt-3 max-h-[420px] space-y-3 overflow-y-auto pr-1">{filteredRooms.length === 0 ? <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">No rooms found.</p> : Object.entries(roomsByFloor).map(([floor, floorRooms]) => <section key={floor} className="border-b border-slate-100 pb-3 last:border-b-0 last:pb-0" aria-labelledby={`floor-${floor}`}><div className="mb-2 flex items-center gap-2"><h3 id={`floor-${floor}`} className="text-xs font-bold uppercase tracking-wide text-slate-600">Floor {floor}</h3><span className="h-px flex-1 bg-slate-100" aria-hidden="true" /><span className="text-[11px] text-slate-500">{floorRooms.length}</span></div><div className="grid grid-cols-[repeat(auto-fit,minmax(54px,1fr))] gap-2 sm:grid-cols-[repeat(auto-fit,minmax(58px,1fr))] xl:grid-cols-[repeat(auto-fit,minmax(62px,1fr))]">{floorRooms.map((room) => <RoomTile key={room.number} room={room} todos={todos} onSelectRoom={onSelectRoom} />)}</div></section>)}</div></section>;
+}
+
+function RoomTile({ room, todos, onSelectRoom }: { room: Room; todos: Todo[]; onSelectRoom: (room: Room, button: HTMLButtonElement) => void }) { const indicators = getRoomOperationalIndicators(todos, room.number); const label = getRoomAriaLabel(room.number, indicators); return <button type="button" onClick={(event) => onSelectRoom(room, event.currentTarget)} className="flex min-h-12 flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-sm font-bold text-slate-800 transition-colors hover:border-teal-300 hover:bg-teal-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 sm:h-14" aria-label={label}><span>{room.number}</span><RoomIndicators indicators={indicators} /></button>; }
+function RoomIndicators({ indicators }: { indicators: { hasHousekeeping: boolean; hasMaintenance: boolean } }) { return <span className="flex gap-1">{indicators.hasHousekeeping ? <StatusIndicator type="housekeeping" /> : null}{indicators.hasMaintenance ? <StatusIndicator type="maintenance" /> : null}</span>; }
+function LegendIndicator({ type }: { type: "housekeeping" | "maintenance" }) { return <StatusIndicator type={type} />; }
+function StatusIndicator({ type }: { type: "housekeeping" | "maintenance" }) { const label = type === "housekeeping" ? "Housekeeping request open" : "Maintenance issue open"; return <span className={`inline-grid size-3 place-items-center rounded-[3px] text-[9px] font-black leading-none text-white ${type === "housekeeping" ? "bg-green-600" : "bg-red-600"}`} aria-label={label} title={label}><span aria-hidden="true">!</span></span>; }
+function getRoomAriaLabel(roomNumber: number, indicators: { hasHousekeeping: boolean; hasMaintenance: boolean }) { if (indicators.hasHousekeeping && indicators.hasMaintenance) return `Room ${roomNumber}, housekeeping request and maintenance issue open.`; if (indicators.hasHousekeeping) return `Room ${roomNumber}, housekeeping request open.`; if (indicators.hasMaintenance) return `Room ${roomNumber}, maintenance issue open.`; return `Room ${roomNumber}, no active items.`; }
+
+function OperationsPanels({ logEntries }: { logEntries: LogBookEntry[] }) { return <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]" aria-label="Operational panels"><LogBookPanel logEntries={logEntries} /><aside className="space-y-4"><CompactCard title="Lost & Found" meta="3 items" action="View items — Coming next"><p>Tagged items are awaiting owner contact.</p></CompactCard><CompactCard title="Announcements" meta="3 posts"><div className="divide-y divide-slate-100">{announcements.map((announcement) => <p key={announcement.title} className="py-2 first:pt-0 last:pb-0"><span className="font-medium text-slate-800">{announcement.title}</span><span className="mt-0.5 block text-xs text-slate-500">{announcement.meta}</span></p>)}</div></CompactCard><CompactCard title="Calendar" meta="Today"><div className="space-y-2">{calendarEvents.map((item) => <p key={item.event} className="flex items-start justify-between gap-3 text-sm"><span className="font-medium text-slate-800">{item.event}</span><span className="text-right text-xs text-slate-500">{item.time}</span></p>)}</div></CompactCard></aside></section>; }
+function LogBookPanel({ logEntries }: { logEntries: LogBookEntry[] }) { const sortedEntries = [...logEntries].sort((a, b) => b.createdAt.localeCompare(a.createdAt)); return <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="logbook-title"><div className="mb-3 flex items-center justify-between gap-3"><h2 id="logbook-title" className="text-base font-bold text-slate-950">Log Book</h2><span className="text-xs font-medium text-slate-500">Shift activity</span></div><div className="max-h-72 overflow-y-auto">{sortedEntries.map((entry) => <div key={entry.id} className="grid gap-2 border-t border-slate-100 py-2.5 text-sm first:border-t-0 sm:grid-cols-[78px_92px_minmax(0,1fr)_120px]"><time className="font-semibold text-slate-700" dateTime={entry.createdAt}>{formatTime(entry.createdAt)}</time><span className="text-xs font-medium text-slate-500">{entry.roomNumber ? `Room ${entry.roomNumber}` : "Property"}</span><p className="text-slate-700">{entry.message}</p><span className="text-xs text-slate-500 sm:text-right">{entry.category}</span></div>)}</div></article>; }
+function CompactCard({ title, meta, action, children }: { title: string; meta: string; action?: string; children: ReactNode }) { return <article className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm"><div className="mb-2 flex items-center justify-between gap-3"><h2 className="text-base font-bold text-slate-950">{title}</h2><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{meta}</span></div>{children}{action ? <button type="button" className="mt-3 min-h-8 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-500" aria-disabled="true">{action}</button> : null}</article>; }
+
+function RoomDialog({ room, rooms, todos, onCreate, onClose }: { room: Room; rooms: Room[]; todos: Todo[]; onCreate: (draft: TodoDraft) => void; onClose: () => void }) {
+  const [preset, setPreset] = useState<FormPreset | null>(null); const roomTodos = getTodosForRoom(todos, room.number);
+  useEffect(() => { function onKeyDown(event: KeyboardEvent) { if (event.key === "Escape") onClose(); } document.addEventListener("keydown", onKeyDown); return () => document.removeEventListener("keydown", onKeyDown); }, [onClose]);
+  return <div className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-3 sm:items-stretch sm:justify-end" role="presentation" onMouseDown={onClose}><section role="dialog" aria-modal="true" aria-labelledby="room-dialog-title" className="max-h-full w-full overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:my-3 sm:max-w-[460px] sm:rounded-xl" onMouseDown={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Room details</p><h2 id="room-dialog-title" className="mt-1 text-2xl font-bold text-slate-950">Room {room.number}</h2></div><button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-h-9">Close</button></div><div className="mt-4 space-y-4 text-sm text-slate-700"><div><h3 className="text-sm font-bold text-slate-950">Active to-dos</h3>{roomTodos.length ? <div className="mt-2 space-y-2">{roomTodos.map((todo) => <TodoListItem key={todo.id} todo={todo} />)}</div> : <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">No active to-dos for this room.</p>}</div><div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => setPreset({ roomNumber: room.number, type: "HOUSEKEEPING_REQUEST" })} className="min-h-11 rounded-lg bg-teal-900 px-3 text-sm font-semibold text-white sm:min-h-9">Housekeeping Request</button><button type="button" onClick={() => setPreset({ roomNumber: room.number, type: "MAINTENANCE_ISSUE" })} className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 sm:min-h-9">Maintenance Issue</button></div>{preset ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><TodoForm rooms={rooms} preset={preset} onCancel={() => setPreset(null)} onCreate={(draft) => { onCreate(draft); setPreset(null); }} /></div> : null}</div></section></div>;
+}
+function TodoListItem({ todo }: { todo: Todo }) { const type = todo.type === "HOUSEKEEPING_REQUEST" ? "housekeeping" : "maintenance"; return <article className="rounded-lg border border-slate-200 p-3"><div className="flex items-center gap-2"><StatusIndicator type={type} /><h4 className="font-bold text-slate-950">{getTodoTypeLabel(todo.type)}</h4><time className="ml-auto text-xs text-slate-500" dateTime={todo.createdAt}>{formatTime(todo.createdAt)}</time></div><p className="mt-1 text-slate-800">{todo.details}{todo.quantity ? ` · Qty ${todo.quantity}` : ""}</p>{todo.note ? <p className="mt-1 text-xs text-slate-500">Note: {todo.note}</p> : null}</article>; }
+
+function TodoForm({ rooms, preset, onCreate, onCancel }: { rooms: Room[]; preset: FormPreset; onCreate: (draft: TodoDraft) => void; onCancel: () => void }) {
+  const [values, setValues] = useState<TodoFormValues>(() => ({ roomNumber: preset.roomNumber?.toString() ?? "", type: preset.type ?? "", details: "", customDetails: "", quantity: "1", note: "" })); const [errors, setErrors] = useState<TodoFormErrors>({});
+  useEffect(() => { setValues({ roomNumber: preset.roomNumber?.toString() ?? "", type: preset.type ?? "", details: "", customDetails: "", quantity: "1", note: "" }); setErrors({}); }, [preset.roomNumber, preset.type]);
+  const roomGroups = useMemo(() => groupRoomsByFloor(rooms), [rooms]); const detailOptions = values.type === "MAINTENANCE_ISSUE" ? MAINTENANCE_OPTIONS : HOUSEKEEPING_OPTIONS;
+  function update<Key extends keyof TodoFormValues>(key: Key, value: TodoFormValues[Key]) { setValues((current) => ({ ...current, [key]: value, ...(key === "type" ? { details: "", customDetails: "", quantity: value === "HOUSEKEEPING_REQUEST" ? "1" : current.quantity } : {}) })); }
+  function onSubmit(event: FormEvent) { event.preventDefault(); const validation = validateTodoForm(values, rooms); setErrors(validation.errors); if (!validation.draft) return; onCreate(validation.draft); setValues({ roomNumber: preset.roomNumber?.toString() ?? "", type: preset.type ?? "", details: "", customDetails: "", quantity: "1", note: "" }); }
+  return <form className="space-y-3" onSubmit={onSubmit} noValidate><div className="grid gap-3 sm:grid-cols-2"><Field label="Room Number" error={errors.roomNumber}><select value={values.roomNumber} onChange={(event) => update("roomNumber", event.target.value)} className="form-input"><option value="">Select room</option>{Object.entries(roomGroups).map(([floor, floorRooms]) => <optgroup key={floor} label={`Floor ${floor}`}>{floorRooms.map((room) => <option key={room.number} value={room.number}>Room {room.number}</option>)}</optgroup>)}</select></Field><Field label="To-do Type" error={errors.type}><select value={values.type} onChange={(event) => update("type", event.target.value as TodoFormValues["type"])} className="form-input"><option value="">Select type</option><option value="HOUSEKEEPING_REQUEST">Housekeeping Request</option><option value="MAINTENANCE_ISSUE">Maintenance Issue</option></select></Field></div><Field label={values.type === "MAINTENANCE_ISSUE" ? "Request Item / Issue" : "Request Item / Issue"} error={errors.details}><select value={values.details} onChange={(event) => update("details", event.target.value)} className="form-input"><option value="">Select request or issue</option>{detailOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></Field>{values.details === "Other" ? <Field label={values.type === "MAINTENANCE_ISSUE" ? "Describe issue" : "Describe request"} error={errors.customDetails}><input value={values.customDetails} onChange={(event) => update("customDetails", event.target.value)} className="form-input" /></Field> : null}{values.type === "HOUSEKEEPING_REQUEST" ? <Field label="Quantity" error={errors.quantity}><input type="number" min="1" step="1" value={values.quantity} onChange={(event) => update("quantity", event.target.value)} className="form-input max-w-28" /></Field> : null}<Field label="Optional Note" error={errors.note}><textarea value={values.note} onChange={(event) => update("note", event.target.value)} rows={2} className="form-input min-h-16 py-2" /></Field><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={onCancel} className="min-h-9 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700">Cancel</button><button type="submit" className="min-h-9 rounded-lg bg-teal-800 px-3 text-sm font-semibold text-white">Create To-do</button></div></form>;
+}
+function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) { const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-"); return <label className="grid gap-1 text-xs font-semibold text-slate-700">{label}<span className="contents">{children}</span>{error ? <span id={`${id}-error`} className="text-xs font-medium text-red-700">{error}</span> : null}</label>; }
+function validateTodoForm(values: TodoFormValues, rooms: Room[]): { errors: TodoFormErrors; draft: TodoDraft | null } { const errors: TodoFormErrors = {}; const roomNumber = Number(values.roomNumber); if (!values.roomNumber || !rooms.some((room) => room.number === roomNumber)) errors.roomNumber = "Select a room."; if (!values.type) errors.type = "Select a to-do type."; if (!values.details.trim()) errors.details = "Select a request or issue."; const details = values.details === "Other" ? values.customDetails.trim() : values.details.trim(); if (values.details === "Other" && !details) errors.customDetails = values.type === "MAINTENANCE_ISSUE" ? "Enter issue details." : "Enter request details."; let quantity: number | null = null; if (values.type === "HOUSEKEEPING_REQUEST") { quantity = Number(values.quantity); if (!values.quantity || !Number.isInteger(quantity) || quantity < 1) errors.quantity = "Quantity must be a whole number greater than zero."; } if (Object.keys(errors).length || !values.type) return { errors, draft: null }; return { errors, draft: { roomNumber, type: values.type, details, quantity: values.type === "HOUSEKEEPING_REQUEST" ? quantity : null, note: values.note.trim() || null } }; }
+function formatTime(value: string) { return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(value)); }

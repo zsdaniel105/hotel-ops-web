@@ -1,17 +1,26 @@
 # Hotel Ops Web
 
-A Netlify-ready Next.js App Router demo for a hotel operations dashboard foundation.
+A Netlify-ready Next.js App Router demo for a compact hotel operations dashboard prototype.
 
-## Included in this PR
+## New prototype features
 
-- TypeScript, Tailwind CSS, ESLint, npm, and the `src/` directory structure.
-- `@/*` import alias configured in TypeScript.
-- Responsive English-only application shell.
-- Static demo dashboard tiles for Lost & Found, Announcements, Calendar, and Log Book.
-- 180 compact room tiles grouped by floor, with 30 rooms on each of six floors.
-- Green `Clear` status and red `Open item` status with visible text and icon indicators.
-- Seeded open items for Rooms 204, 317, and 508.
-- Accessible room-detail dialog with non-functional placeholder request actions.
+- Header **Create To-do** action for quick Front Desk entry.
+- Room-based to-do creation from the Room Details drawer.
+- Room search by partial room number with floor grouping preserved.
+- Housekeeping and Maintenance indicators derived from open to-dos.
+- Local browser persistence with `localStorage` under `hotel-ops-web:prototype:v1`.
+- Dynamic Log Book entries created when new to-dos are added.
+
+## Indicator legend
+
+- No icon = no active item.
+- Green exclamation = Housekeeping Request.
+- Red exclamation = Maintenance Issue.
+- Both icons = both Housekeeping Request and Maintenance Issue active.
+
+## Prototype persistence
+
+Created to-dos and generated Log Book entries are stored only in the current browser's `localStorage`. This persistence is browser-specific and device-specific. It is not production multi-user persistence, and it is not shared between Front Desk and Housekeeping. Clearing browser storage removes created prototype data and returns the demo to seeded data.
 
 ## Getting started
 
@@ -28,6 +37,6 @@ npm run typecheck
 npm run build
 ```
 
-## Product limitations
+## Prototype limitations
 
-This foundation is static demo content only. It does not include request creation, request completion, role switching, localStorage, a database, authentication, API routes, server actions, editable modules, Vitest, or React Testing Library.
+This prototype intentionally does not include a completion workflow, authentication, a database, real-time synchronization, a shared department view, department dashboards, API routes, server actions, editable modules, or production persistence.

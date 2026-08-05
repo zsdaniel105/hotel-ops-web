@@ -1,13 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useSyncExternalStore } from "react";
 import { loadPrototypeState, savePrototypeState, SEEDED_PROTOTYPE_STATE } from "@/lib/prototype-storage";
 import { cancelTodo as cancelTodoRecord, completeTodo as completeTodoRecord, createCancellationLogEntry, createCompletionLogEntry, createDeletionLogEntry, createReopenLogEntry, createStartLogEntry, createTodo, createTodoLogEntry, createUnableLogEntry, createUpdateLogEntry, deleteTodo as deleteTodoRecord, markTodoUnable as markTodoUnableRecord, reopenTodo as reopenTodoRecord, ROLE_LABELS, startTodo as startTodoRecord, updateTodoRecord, type TodoDraft, type TodoUpdate } from "@/lib/todos";
 import type { DemoRole, PrototypeState, Todo } from "@/types/hotel-operations";
 
+let prototypeStateSnapshot: PrototypeState | null = null;
+const prototypeStateListeners = new Set<() => void>();
+
+function getServerPrototypeStateSnapshot(): PrototypeState { return SEEDED_PROTOTYPE_STATE; }
+function getClientPrototypeStateSnapshot(): PrototypeState {
+  prototypeStateSnapshot ??= loadPrototypeState();
+  return prototypeStateSnapshot;
+}
+function subscribeToPrototypeState(listener: () => void): () => void {
+  prototypeStateListeners.add(listener);
+  return () => prototypeStateListeners.delete(listener);
+}
+function publishPrototypeState(nextState: PrototypeState): void {
+  prototypeStateSnapshot = nextState;
+  prototypeStateListeners.forEach((listener) => listener());
+}
+
+
 export function usePrototypeState(): { state: PrototypeState; addTodo: (draft: TodoDraft) => Todo; updateTodo: (todoId: string, draft: TodoUpdate) => Todo | null; startTodo: (todoId: string, role: DemoRole) => Todo | null; completeTodo: (todoId: string, role: DemoRole, resolutionNote?: string) => Todo | null; markTodoUnable: (todoId: string, role: DemoRole, reason: string, note: string) => Todo | null; reopenTodo: (todoId: string) => Todo | null; cancelTodo: (todoId: string, reason: string) => Todo | null; deleteTodo: (todoId: string) => Todo | null } {
-  const [state, setState] = useState<PrototypeState>(SEEDED_PROTOTYPE_STATE);
-  const stateRef = useRef<PrototypeState>(SEEDED_PROTOTYPE_STATE);
-  const commitState = useCallback((nextState: PrototypeState): void => { stateRef.current = nextState; savePrototypeState(nextState); setState(nextState); }, []);
-  useEffect(() => { const loadedState = loadPrototypeState(); stateRef.current = loadedState; setState(loadedState); }, []);
+  const state = useSyncExternalStore(subscribeToPrototypeState, getClientPrototypeStateSnapshot, getServerPrototypeStateSnapshot);
+  const stateRef = useRef<PrototypeState>(state);
+  stateRef.current = state;
+  const commitState = useCallback((nextState: PrototypeState): void => { stateRef.current = nextState; savePrototypeState(nextState); publishPrototypeState(nextState); }, []);
   const commitTodo = useCallback((todoId: string, nextTodo: Todo, logEntry: PrototypeState["logEntries"][number]): Todo => { const currentState = stateRef.current; const nextState: PrototypeState = { version: 4, todos: currentState.todos.map((todo) => (todo.id === todoId ? nextTodo : todo)), logEntries: [logEntry, ...currentState.logEntries] }; commitState(nextState); return nextTodo; }, [commitState]);
   const addTodo = useCallback((draft: TodoDraft): Todo => { const currentState = stateRef.current; const todo = createTodo(draft); const nextState: PrototypeState = { version: 4, todos: [todo, ...currentState.todos], logEntries: [createTodoLogEntry(todo), ...currentState.logEntries] }; commitState(nextState); return todo; }, [commitState]);
   const updateTodo = useCallback((todoId: string, draft: TodoUpdate): Todo | null => { const before = stateRef.current.todos.find((todo) => todo.id === todoId && todo.status !== "DELETED"); if (!before) return null; const after = updateTodoRecord(before, draft, "Front Desk"); return after ? commitTodo(todoId, after, createUpdateLogEntry(before, after)) : null; }, [commitTodo]);

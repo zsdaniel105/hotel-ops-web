@@ -1,0 +1,127 @@
+name: Bootstrap hotel operations test dependencies
+
+on:
+  push:
+    branches:
+      - fix/add-missing-test-dependencies
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap-test-dependencies:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the exact hotfix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/add-missing-test-dependencies
+          fetch-depth: 0
+
+      - name: Verify repository identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY}" = "zsdaniel105/hotel-ops-web"
+          test "${GITHUB_REF_NAME}" = "fix/add-missing-test-dependencies"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Show runtime versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Install missing test dependencies
+        run: |
+          npm install --save-dev \
+            vitest \
+            @vitejs/plugin-react \
+            jsdom \
+            @testing-library/react \
+            @testing-library/dom \
+            @testing-library/user-event \
+            @testing-library/jest-dom \
+            vite-tsconfig-paths
+
+      - name: Verify dependency declarations
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const requiredPackages = [
+            'vitest',
+            '@vitejs/plugin-react',
+            'jsdom',
+            '@testing-library/react',
+            '@testing-library/dom',
+            '@testing-library/user-event',
+            '@testing-library/jest-dom',
+            'vite-tsconfig-paths',
+          ];
+          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const missingFromPackageJson = requiredPackages.filter((name) => !packageJson.devDependencies?.[name]);
+          const missingFromLockfile = requiredPackages.filter((name) => !packageLock.packages?.[`node_modules/${name}`]);
+          if (missingFromPackageJson.length) throw new Error(`Missing package.json devDependencies: ${missingFromPackageJson.join(', ')}`);
+          if (typeof packageLock.lockfileVersion !== 'number' || packageLock.lockfileVersion < 2 || !packageLock.packages) throw new Error('package-lock.json is not a valid modern npm lockfile.');
+          if (missingFromLockfile.length) throw new Error(`Missing package-lock.json entries: ${missingFromLockfile.join(', ')}`);
+          NODE
+
+      - name: Verify installed top-level packages
+        run: |
+          npm ls \
+            vitest \
+            @vitejs/plugin-react \
+            jsdom \
+            @testing-library/react \
+            @testing-library/dom \
+            @testing-library/user-event \
+            @testing-library/jest-dom \
+            vite-tsconfig-paths \
+            --depth=0
+
+      - name: Verify Vitest binary
+        run: ./node_modules/.bin/vitest --version
+
+      - name: Clean dependency installation
+        run: |
+          rm -rf node_modules
+          npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run regression tests
+        run: npm run test:run
+
+      - name: Production build
+        run: npm run build
+
+      - name: Complete project quality gate
+        run: npm run check
+
+      - name: Validate diff
+        run: git diff --check
+
+      - name: Commit generated dependency repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/bootstrap-test-dependencies.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git add -u .github/workflows/bootstrap-test-dependencies.yml
+          git diff --cached --check
+          git commit -m "fix: add missing test dependencies"
+          git push origin HEAD:fix/add-missing-test-dependencies

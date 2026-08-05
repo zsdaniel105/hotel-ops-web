@@ -102,3 +102,34 @@ npm run check
 ## Prototype limitations
 
 This prototype intentionally does not include real authentication, employee accounts, a database, cross-device sharing, real-time synchronization, push/email/SMS notifications, individual employee assignment, comments or chat, photos, attachments, inventory deductions, automatic SLA escalation, API routes, server actions, editable Lost & Found, editable Calendar, editable Announcements, PMS integration, native applications, PWA installation, or production persistence.
+
+## Automated Testing
+
+Use the following commands for local validation:
+
+```bash
+npm test
+npm run test:run
+npm run lint
+npm run typecheck
+npm run build
+npm run check
+```
+
+`npm test` starts Vitest watch mode for development. `npm run test:run` executes the regression suite once for CI-style validation. `npm run build` runs `prebuild`, so the Vitest regression suite executes before `next build`. Netlify uses `npm run build`, which means production deployment is blocked when tests fail. `npm run check` is the full local gate: lint, typecheck, test run through `prebuild`, and production compilation.
+
+## Coverage Areas
+
+The automated suites cover transition lifecycle behavior, role permissions, selectors, deterministic sorting, room indicators, audit entries, request timelines, storage migrations, malformed persistence, localStorage behavior, date formatting, tabs, centralized action availability, and drawer/modal behavior.
+
+## UI Architecture
+
+The dashboard is organized around an orchestrating `Dashboard` component with smaller boundaries for the app header, Front Desk dashboard, department dashboard, request lists, request details, request actions, room board, room details, operations panels, badges, empty states, tabs, modal layers, and dialog focus management. Domain transition rules remain in `src/lib/todos.ts`, presentation labels remain centralized in `src/lib/presentation.ts`, and UI action availability is derived by `getAvailableTodoActions`.
+
+## Accessibility
+
+Request status tabs use `tablist`, `tab`, and `tabpanel` semantics with roving `tabIndex` and ArrowLeft, ArrowRight, Home, and End keyboard support. Dialog layers use labelled `role="dialog"` containers with `aria-modal="true"`, focus moves into the active layer, Tab and Shift+Tab remain contained, Escape closes only the topmost modal layer, and focus returns to the opener. Status and priority badges include visible text so meaning is not communicated by color alone.
+
+## Prototype limitations preserved
+
+This remains a single-browser prototype with demo roles and `localStorage` persistence only. It does not add authentication, a database, real-time synchronization, cross-device data, or a new product workflow.

@@ -71,3 +71,9 @@ button, a {
 .btn-secondary:hover { background: rgb(248 250 252); }
 .btn-danger { border: 1px solid rgb(252 165 165); background: rgb(254 242 242); color: rgb(185 28 28); }
 .btn-primary:focus, .btn-secondary:focus, .btn-danger:focus { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 2px rgb(20 184 166); }
+
+@media (max-width: 639px) {
+  .btn-primary, .btn-secondary, .btn-danger {
+    min-height: 2.75rem;
+  }
+}

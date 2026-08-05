@@ -84,3 +84,11 @@ export function isSameLocalDay(value: string, now: Date): boolean {
   if (Number.isNaN(date.getTime())) return false;
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
 }
+
+export function getRequestTimeline(logEntries: LogBookEntry[], todoId: string): LogBookEntry[] {
+  return logEntries.filter((entry) => entry.todoId === todoId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function getPropertyLogBook(logEntries: LogBookEntry[]): LogBookEntry[] {
+  return [...logEntries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}

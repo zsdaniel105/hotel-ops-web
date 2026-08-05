@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { usePrototypeState } from "@/hooks/usePrototypeState";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { formatDateTime, formatRequestAge, formatTime } from "@/lib/date-formatting";
 import { REQUEST_TYPE_PRESENTATION } from "@/lib/presentation";
 import { buildRooms, filterRoomsByNumber, groupRoomsByFloor } from "@/lib/rooms";
 import { getAvailableTodoActions, type TodoAction } from "@/lib/todo-actions";
-import { CANCELLATION_REASONS, getActiveTodos, getAllVisibleTodos, getCancelledTodos, getCancelledTodosForRoom, getCompletedTodos, getCompletedTodosForRoom, getDepartmentCounts, getFrontDeskCounts, getInProgressTodos, getOpenTodos, getPropertyLogBook, getRequestTimeline, getRoomOperationalIndicators, getTodoTypeForRole, getTodosForRole, getTodosForRoom, getUnableTodos, HOUSEKEEPING_OPTIONS, HOUSEKEEPING_UNABLE_REASONS, MAINTENANCE_OPTIONS, MAINTENANCE_UNABLE_REASONS, ROLE_LABELS, sortPriorityOldest, type TodoDraft } from "@/lib/todos";
+import { CANCELLATION_REASONS, getActiveTodos, getAllVisibleTodos, getCancelledTodos, getCancelledTodosForRoom, getCompletedTodos, getCompletedTodosForRoom, getDepartmentCounts, getFrontDeskCounts, getInProgressTodos, getOpenTodos, getPropertyLogBook, getRequestTimeline, getRoomOperationalIndicators, getTodosForRole, getTodosForRoom, getUnableTodos, HOUSEKEEPING_OPTIONS, HOUSEKEEPING_UNABLE_REASONS, MAINTENANCE_OPTIONS, MAINTENANCE_UNABLE_REASONS, ROLE_LABELS, sortPriorityOldest, type TodoDraft } from "@/lib/todos";
 import { PriorityBadge, StatusBadge } from "@/components/dashboard/ui/Badge";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { Modal } from "@/components/dashboard/ui/Modal";
 import { Tabs } from "@/components/dashboard/ui/Tabs";
-import type { DemoRole, LogBookEntry, Room, Todo, TodoPriority, TodoStatus, TodoType } from "@/types/hotel-operations";
+import type { DemoRole, LogBookEntry, Room, Todo, TodoPriority, TodoType } from "@/types/hotel-operations";
 
 type FormPreset = { roomNumber?: number; type?: TodoType };
 type TodoFormValues = { roomNumber: string; type: "" | TodoType; priority: TodoPriority; details: string; customDetails: string; quantity: string; note: string };
@@ -20,19 +20,26 @@ type TodoFormErrors = Partial<Record<keyof TodoFormValues, string>>;
 type FrontDeskTab = "OPEN" | "IN_PROGRESS" | "UNABLE_TO_COMPLETE" | "COMPLETED" | "CANCELLED" | "ALL";
 type DepartmentTab = "OPEN" | "IN_PROGRESS" | "UNABLE_TO_COMPLETE" | "COMPLETED";
 const announcements = [{ title: "Pool deck closes at 9:00 PM tonight.", meta: "Guest services" }, { title: "Quiet-hours reminder for team handoff.", meta: "Front Desk" }, { title: "VIP arrivals require manager greeting.", meta: "Today" }];
+const DEMO_ROLE_STORAGE_KEY = "hotel-ops-web:demo-role";
+const DEFAULT_DEMO_ROLE: DemoRole = "FRONT_DESK";
+const demoRoleListeners = new Set<() => void>();
+function subscribeToDemoRoleStore(listener: () => void): () => void { demoRoleListeners.add(listener); return () => demoRoleListeners.delete(listener); }
+function publishDemoRoleChange(): void { demoRoleListeners.forEach((listener) => listener()); }
+function getServerDemoRoleSnapshot(): DemoRole { return DEFAULT_DEMO_ROLE; }
+function getClientDemoRoleSnapshot(): DemoRole { const stored = window.localStorage.getItem(DEMO_ROLE_STORAGE_KEY); return stored && stored in ROLE_LABELS ? (stored as DemoRole) : DEFAULT_DEMO_ROLE; }
+function useStoredDemoRole(): DemoRole { return useSyncExternalStore(subscribeToDemoRoleStore, getClientDemoRoleSnapshot, getServerDemoRoleSnapshot); }
 
 export function Dashboard() {
   const rooms = useMemo(() => buildRooms(), []);
   const { state, addTodo, updateTodo, startTodo, completeTodo, markTodoUnable, reopenTodo, cancelTodo, deleteTodo } = usePrototypeState();
-  const [role, setRole] = useState<DemoRole>("FRONT_DESK");
+  const role = useStoredDemoRole();
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [message, setMessage] = useState("");
   const roomOpener = useRef<HTMLButtonElement | null>(null);
   const selectedTodo = selectedTodoId ? state.todos.find((todo) => todo.id === selectedTodoId && todo.status !== "DELETED") ?? null : null;
-  useEffect(() => { const stored = window.localStorage.getItem("hotel-ops-web:demo-role") as DemoRole | null; if (stored && stored in ROLE_LABELS) setRole(stored); }, []);
-  function changeRole(nextRole: DemoRole) { setRole(nextRole); window.localStorage.setItem("hotel-ops-web:demo-role", nextRole); setSelectedTodoId(null); }
+  function changeRole(nextRole: DemoRole) { window.localStorage.setItem(DEMO_ROLE_STORAGE_KEY, nextRole); publishDemoRoleChange(); setSelectedTodoId(null); }
   const handlers = {
     onCreate: (draft: TodoDraft) => { const todo = addTodo(draft); setMessage(`To-do created for Room ${todo.roomNumber}.`); },
     onUpdate: (id: string, draft: TodoDraft) => { const todo = updateTodo(id, draft); setMessage(todo ? `Request updated for Room ${todo.roomNumber}.` : "No request changes saved."); },

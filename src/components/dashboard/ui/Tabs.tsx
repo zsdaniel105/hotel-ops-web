@@ -6,7 +6,6 @@ type TabItem<T extends string> = { value: T; label: string; count?: number };
 
 export function Tabs<T extends string>({ label, value, tabs, onChange, children }: { label: string; value: T; tabs: readonly TabItem<T>[]; onChange: (value: T) => void; children?: React.ReactNode }) {
   const baseId = useId();
-  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.value === value));
   function move(nextIndex: number) {
     const next = tabs[(nextIndex + tabs.length) % tabs.length];
     onChange(next.value);

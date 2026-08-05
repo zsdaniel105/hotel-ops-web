@@ -1,0 +1,120 @@
+name: Bootstrap test dependencies
+
+on:
+  push:
+    branches:
+      - codex/add-missing-testing-dependencies-with-workflow
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.repository == 'zsdaniel105/hotel-ops-web' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the workflow branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify baseline and generated dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=e6bd888224f8e80e3e12994811b7f00f0a06fd15
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$baseline" HEAD; then
+            echo "::error::The workflow branch is not based on required main baseline $baseline."
+            exit 1
+          fi
+          node <<'NODE'
+          const assert = require("node:assert/strict");
+          const pkg = require("./package.json");
+          const lock = require("./package-lock.json");
+          const requiredScripts = {
+            test: "vitest",
+            "test:run": "vitest run",
+            prebuild: "npm run test:run",
+          };
+          for (const [name, value] of Object.entries(requiredScripts)) {
+            assert.equal(pkg.scripts?.[name], value, `Unexpected ${name} script`);
+          }
+          const requested = [
+            "vitest",
+            "@vitejs/plugin-react",
+            "jsdom",
+            "@testing-library/react",
+            "@testing-library/dom",
+            "@testing-library/user-event",
+            "@testing-library/jest-dom",
+            "vite-tsconfig-paths",
+          ];
+          for (const name of requested) {
+            const version = pkg.devDependencies?.[name] ?? "";
+            assert.match(version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/, `${name} is not an exact version`);
+            assert.equal(lock.packages?.[""]?.devDependencies?.[name], version, `${name} differs in package-lock.json`);
+            const resolved = lock.packages?.[`node_modules/${name}`];
+            assert.ok(resolved, `${name} has no resolved package-lock.json entry`);
+            assert.equal(resolved.version, version, `${name} resolved to an unexpected version`);
+            assert.match(resolved.resolved ?? "", /^https:\/\//, `${name} has no resolved registry URL`);
+            assert.ok(resolved.integrity, `${name} has no integrity hash`);
+          }
+          assert.equal(lock.name, pkg.name, "package-lock.json does not describe this package");
+          assert.ok(Number.isInteger(lock.lockfileVersion), "package-lock.json has no npm lockfile version");
+          NODE
+
+      - name: Validate the generated lockfile with a clean install
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf node_modules
+          npm ci
+          npx --no-install vitest --version
+
+      - name: Run the complete quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:run
+          npm run lint
+          npm run typecheck
+          npm run build
+          npm run check
+
+      - name: Verify branch whitespace and pre-cleanup scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=e6bd888224f8e80e3e12994811b7f00f0a06fd15
+          git diff --check "$baseline"...HEAD
+          mapfile -t changed < <(git diff --name-only "$baseline"...HEAD)
+          printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 4
+          test "${changed[0]}" = .github/workflows/bootstrap-test-dependencies.yml
+          test "${changed[1]}" = package-lock.json
+          test "${changed[2]}" = package.json
+          test "${changed[3]}" = vitest.setup.ts
+
+      - name: Remove the temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=e6bd888224f8e80e3e12994811b7f00f0a06fd15
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/bootstrap-test-dependencies.yml
+          git commit -m 'chore: remove temporary dependency bootstrap workflow'
+          mapfile -t changed < <(git diff --name-only "$baseline"...HEAD)
+          printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 3
+          test "${changed[0]}" = package-lock.json
+          test "${changed[1]}" = package.json
+          test "${changed[2]}" = vitest.setup.ts
+          git push origin "HEAD:${GITHUB_REF_NAME}"

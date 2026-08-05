@@ -11,8 +11,31 @@ A Netlify-ready Next.js App Router demo for a compact hotel operations dashboard
 - Housekeeping and Maintenance queues with department completion actions.
 - Active and recently completed to-dos in Room Details.
 - Housekeeping and Maintenance indicators derived only from open to-dos.
-- Dynamic Log Book entries created when to-dos are added or completed.
-- Local browser persistence with `localStorage` under `hotel-ops-web:prototype:v2`.
+- Dynamic Log Book entries created when requests are added, updated, completed, or deleted.
+- Local browser persistence with `localStorage` under `hotel-ops-web:prototype:v3`.
+
+
+## Front Desk Request Management
+
+The Front Desk dashboard includes a compact **Requests** panel for all non-deleted Housekeeping Requests and Maintenance Issues. The panel provides **Open**, **Completed**, and **All** tabs with live counts. Open requests are sorted newest first, completed requests are sorted by completion time, and All is sorted by most recent activity.
+
+Selecting a request opens the shared **Request Details** drawer. Front Desk can review the room, request type, status, details, quantity when applicable, note, creation time, last updated time, and completion metadata when present. The same drawer opens from the Requests panel and from active or completed request entries in Room Details.
+
+Open requests can be edited, marked completed by Front Desk, or deleted. Completed requests can be edited or deleted, but cannot be completed again.
+
+## Edit behavior
+
+**Edit Request** allows Front Desk to change Room Number, Request Type, Request Item / Issue, Quantity for Housekeeping Requests, and Optional Note. The request ID, original creation timestamp, status, completion timestamp, completion actor, deletion timestamp, and deletion actor are preserved. Saving a real change records `updatedAt` and `updatedBy: Front Desk`; a no-op edit does not add audit noise.
+
+Custom request details are preserved by initializing the details selector as `Other` and pre-filling the custom details field. Changing a Housekeeping Request to a Maintenance Issue clears quantity; changing a Maintenance Issue to a Housekeeping Request requires a whole-number quantity greater than zero.
+
+## Soft deletion
+
+**Delete Request** uses soft deletion. Deletion hides the request from Requests, Room Details, room indicators, department queues, and normal counts, but keeps the record in local prototype state for audit integrity. Restore and permanent deletion are intentionally not implemented.
+
+## Audit Log Book
+
+The Log Book keeps historical creation and completion entries and now adds concise update and deletion entries. Editing or deleting a request never rewrites older Log Book entries.
 
 ## Demo roles
 
@@ -53,9 +76,9 @@ Indicators are derived only from open to-dos. Completing one type removes only t
 
 ## Prototype persistence and migration
 
-Created to-dos, completed to-dos, completion metadata, and generated Log Book entries are stored only in the current browser's `localStorage` under state version 2.
+Created requests, edits, completions, soft deletions, completion metadata, update/delete metadata, and generated Log Book entries are stored only in the current browser's `localStorage` under state version 3 at `hotel-ops-web:prototype:v3`.
 
-On load, the app first checks `hotel-ops-web:prototype:v2`. If no valid v2 state exists, it checks `hotel-ops-web:prototype:v1`, migrates valid v1 to-dos by adding `completedAt: null` and `completedBy: null`, preserves existing IDs and Log Book entries, and saves the migrated result as v2. Malformed storage falls back to deterministic seeded v2 data without crashing.
+On load, the app checks for valid v3 state first. If unavailable, it checks valid v2 state, migrates each request by adding `updatedAt`, `updatedBy`, `deletedAt`, and `deletedBy`, preserves existing IDs, request content, completion metadata, and Log Book entries, then saves the migrated result as v3. If v2 is unavailable, valid v1 data is migrated directly to v3 by preserving the existing v1 behavior, setting requests to open, adding empty completion metadata, and adding v3 update/delete metadata. Malformed storage falls back to deterministic seeded v3 data without crashing.
 
 Persistence is browser-specific and device-specific. Clearing browser storage removes created prototype data and returns the demo to seeded data.
 
@@ -72,8 +95,9 @@ npm run dev
 npm run lint
 npm run typecheck
 npm run build
+npm run check
 ```
 
 ## Prototype limitations
 
-This prototype intentionally does not include real authentication, employee accounts, a database, cross-device sharing, real-time synchronization, push/email/SMS notifications, individual employee assignment, additional task statuses, API routes, server actions, editable modules, or production persistence. Completion occurs within the same browser prototype.
+This prototype intentionally does not include real authentication or server-enforced Front Desk permissions, employee accounts, a database, cross-device sharing, real-time synchronization, push/email/SMS notifications, individual employee assignment, additional task statuses, API routes, server actions, editable modules, or production persistence. Completion occurs within the same browser prototype.

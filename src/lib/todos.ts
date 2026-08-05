@@ -1,3 +1,4 @@
+import { REQUEST_TYPE_PRESENTATION, STATUS_PRESENTATION, isActiveStatus } from "@/lib/presentation";
 import type { ActorLabel, DemoRole, LogBookEntry, Todo, TodoPriority, TodoStatus, TodoType } from "@/types/hotel-operations";
 export const HOUSEKEEPING_OPTIONS = ["Towel Set", "Extra Towels", "Extra Pillows", "Toiletries", "Linen Replacement", "Missing Room Item", "Missing Robe", "Other"] as const;
 export const MAINTENANCE_OPTIONS = ["Air Conditioner Not Cooling", "Television Not Working", "Sink Leaking", "Slow-Draining Sink", "Toilet Issue", "Door Lock Issue", "Lighting Issue", "Other"] as const;
@@ -7,9 +8,9 @@ export const CANCELLATION_REASONS = ["Guest No Longer Needs Item", "Issue Resolv
 export const ROLE_LABELS: Record<DemoRole, ActorLabel> = { FRONT_DESK: "Front Desk", HOUSEKEEPING_SUPERVISOR: "Housekeeping Supervisor", MAINTENANCE_MANAGER: "Maintenance Manager" };
 export type TodoDraft = { roomNumber: number; type: TodoType; priority: TodoPriority; details: string; quantity: number | null; note: string | null };
 export type TodoUpdate = TodoDraft;
-export function getTodoTypeLabel(type: TodoType): string { return type === "HOUSEKEEPING_REQUEST" ? "Housekeeping Request" : "Maintenance Issue"; }
-export function getTodoTypeShortLabel(type: TodoType): string { return type === "HOUSEKEEPING_REQUEST" ? "Housekeeping request" : "Maintenance issue"; }
-export function getStatusLabel(status: TodoStatus): string { return ({ OPEN: "Open", IN_PROGRESS: "In Progress", UNABLE_TO_COMPLETE: "Unable to Complete", COMPLETED: "Completed", CANCELLED: "Cancelled", DELETED: "Deleted" } satisfies Record<TodoStatus, string>)[status]; }
+export function getTodoTypeLabel(type: TodoType): string { return REQUEST_TYPE_PRESENTATION[type].label; }
+export function getTodoTypeShortLabel(type: TodoType): string { return REQUEST_TYPE_PRESENTATION[type].shortLabel; }
+export function getStatusLabel(status: TodoStatus): string { return STATUS_PRESENTATION[status].label; }
 export function createStableId(prefix: string): string { if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `${prefix}-${crypto.randomUUID()}`; return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`; }
 export function getTodoTypeForRole(role: DemoRole): TodoType | null { if (role === "HOUSEKEEPING_SUPERVISOR") return "HOUSEKEEPING_REQUEST"; if (role === "MAINTENANCE_MANAGER") return "MAINTENANCE_ISSUE"; return null; }
 function canAct(todo: Todo, role: DemoRole): boolean { const type = getTodoTypeForRole(role); return Boolean(type && todo.type === type); }
@@ -23,14 +24,45 @@ export function reopenTodo(todo: Todo, role: DemoRole, reopenedAt = new Date().t
 export function cancelTodo(todo: Todo, role: DemoRole, reason: string, cancelledAt = new Date().toISOString()): Todo | null { const clean = cleanNote(reason); if (role !== "FRONT_DESK" || !clean || !(todo.status === "OPEN" || todo.status === "IN_PROGRESS" || todo.status === "UNABLE_TO_COMPLETE")) return null; return { ...todo, status: "CANCELLED", cancelledAt, cancelledBy: "Front Desk", cancellationReason: clean, updatedAt: cancelledAt, updatedBy: "Front Desk" }; }
 export function deleteTodo(todo: Todo, actor: ActorLabel, deletedAt = new Date().toISOString()): Todo | null { if (todo.status === "DELETED") return null; return { ...todo, status: "DELETED", deletedAt, deletedBy: actor, updatedAt: deletedAt, updatedBy: actor }; }
 export function getVisibleTodos(todos: Todo[]): Todo[] { return todos.filter((todo) => todo.status !== "DELETED"); }
-export function getActiveTodos(todos: Todo[]): Todo[] { return todos.filter((todo) => todo.status === "OPEN" || todo.status === "IN_PROGRESS" || todo.status === "UNABLE_TO_COMPLETE"); }
-export function sortPriorityOldest(todos: Todo[]): Todo[] { return [...todos].sort((a, b) => (a.priority === b.priority ? a.createdAt.localeCompare(b.createdAt) : a.priority === "URGENT" ? -1 : 1)); }
+export function getActiveTodos(todos: Todo[]): Todo[] { return todos.filter((todo) => isActiveStatus(todo.status)); }
+function compareCreatedThenId(a: Todo, b: Todo): number {
+  const created = a.createdAt.localeCompare(b.createdAt);
+  return created || a.id.localeCompare(b.id);
+}
+
+function compareUpdatedNewestThenId(a: Todo, b: Todo): number {
+  const updated = b.updatedAt.localeCompare(a.updatedAt);
+  return updated || compareCreatedThenId(a, b);
+}
+
+export function sortPriorityOldest(todos: Todo[]): Todo[] {
+  return [...todos].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority === "URGENT" ? -1 : 1;
+    return compareCreatedThenId(a, b);
+  });
+}
 export function getOpenTodos(todos: Todo[]): Todo[] { return sortPriorityOldest(todos.filter((todo) => todo.status === "OPEN")); }
 export function getInProgressTodos(todos: Todo[]): Todo[] { return sortPriorityOldest(todos.filter((todo) => todo.status === "IN_PROGRESS")); }
 export function getUnableTodos(todos: Todo[]): Todo[] { return sortPriorityOldest(todos.filter((todo) => todo.status === "UNABLE_TO_COMPLETE")); }
-export function getCompletedTodos(todos: Todo[]): Todo[] { return todos.filter((todo) => todo.status === "COMPLETED").sort((a, b) => (b.completedAt ?? b.updatedAt).localeCompare(a.completedAt ?? a.updatedAt)); }
-export function getCancelledTodos(todos: Todo[]): Todo[] { return todos.filter((todo) => todo.status === "CANCELLED").sort((a, b) => (b.cancelledAt ?? b.updatedAt).localeCompare(a.cancelledAt ?? a.updatedAt)); }
-export function getAllVisibleTodos(todos: Todo[]): Todo[] { return getVisibleTodos(todos).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)); }
+export function getCompletedTodos(todos: Todo[]): Todo[] {
+  return todos
+    .filter((todo) => todo.status === "COMPLETED")
+    .sort((a, b) => {
+      const completed = (b.completedAt ?? b.updatedAt).localeCompare(a.completedAt ?? a.updatedAt);
+      return completed || compareCreatedThenId(a, b);
+    });
+}
+export function getCancelledTodos(todos: Todo[]): Todo[] {
+  return todos
+    .filter((todo) => todo.status === "CANCELLED")
+    .sort((a, b) => {
+      const cancelled = (b.cancelledAt ?? b.updatedAt).localeCompare(a.cancelledAt ?? a.updatedAt);
+      return cancelled || compareCreatedThenId(a, b);
+    });
+}
+export function getAllVisibleTodos(todos: Todo[]): Todo[] {
+  return getVisibleTodos(todos).sort(compareUpdatedNewestThenId);
+}
 export function getTodosForRoom(todos: Todo[], roomNumber: number): Todo[] { return sortPriorityOldest(getActiveTodos(todos).filter((todo) => todo.roomNumber === roomNumber)); }
 export function getCompletedTodosForRoom(todos: Todo[], roomNumber: number): Todo[] { return getCompletedTodos(todos).filter((todo) => todo.roomNumber === roomNumber); }
 export function getCancelledTodosForRoom(todos: Todo[], roomNumber: number): Todo[] { return getCancelledTodos(todos).filter((todo) => todo.roomNumber === roomNumber); }
@@ -47,4 +79,8 @@ export function createReopenLogEntry(todo: Todo): LogBookEntry { return entry(to
 export function createCancellationLogEntry(todo: Todo): LogBookEntry { return entry(todo, "CANCELLED", `Request cancelled for Room ${todo.roomNumber}: ${todo.details}.`, todo.cancelledBy, todo.cancellationReason); }
 export function createDeletionLogEntry(todo: Todo): LogBookEntry { return entry(todo, "DELETED", `${getTodoTypeShortLabel(todo.type)} deleted for Room ${todo.roomNumber}: ${todo.details}.`, todo.deletedBy); }
 function entry(todo: Todo, eventType: LogBookEntry["eventType"], message: string, actor: ActorLabel | null, reason: string | null = null, note: string | null = null): LogBookEntry { return { id: createStableId("log"), createdAt: todo.updatedAt, roomNumber: todo.roomNumber, message, category: todo.type === "HOUSEKEEPING_REQUEST" ? "Housekeeping" : "Maintenance", todoId: todo.id, eventType, actor, reason, note }; }
-function isSameLocalDay(value: string, now: Date): boolean { const date = new Date(value); return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate(); }
+export function isSameLocalDay(value: string, now: Date): boolean {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+}

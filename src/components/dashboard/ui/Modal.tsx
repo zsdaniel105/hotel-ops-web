@@ -22,7 +22,7 @@ export function Modal({ title, description, children, footer, onClose, labelledB
     function onKeyDown(event: KeyboardEvent) {
       const layerId = layerIdRef.current;
       if (!layerId || !isTopDialogLayer(layerId)) return;
-      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); onClose(); return; }
       if (event.key !== "Tab" || !panelRef.current) return;
       const focusables = Array.from(panelRef.current.querySelectorAll<HTMLElement>(focusableSelector)).filter((el) => !el.hasAttribute("disabled"));
       if (!focusables.length) { event.preventDefault(); panelRef.current.focus(); return; }

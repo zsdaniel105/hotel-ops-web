@@ -19,6 +19,8 @@ import { FrontDeskChecklistDashboard } from "@/components/front-desk-checklist/F
 import { ShiftHandoffDashboard } from "@/components/shift-handoff/ShiftHandoffDashboard";
 import { AnnouncementsDashboard } from "@/components/announcements/AnnouncementsDashboard";
 import { AnnouncementDashboardPanel } from "@/components/announcements/AnnouncementDashboardPanel";
+import { IncidentReportsDashboard } from "@/components/incidents/IncidentReportsDashboard";
+import { IncidentDashboardPanel } from "@/components/incidents/IncidentDashboardPanel";
 import { useFrontDeskChecklistState } from "@/hooks/useFrontDeskChecklistState";
 import { useShiftHandoffState } from "@/hooks/useShiftHandoffState";
 import { formatLocalDate, getDailyStatuses } from "@/lib/front-desk-checklist";
@@ -49,12 +51,13 @@ export function Dashboard() {
   const [createOpen, setCreateOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [section, setSection] = useState<AppSection>("DASHBOARD");
+  const [incidentCreate, setIncidentCreate] = useState(false);
   const [handoffTarget, setHandoffTarget] = useState<HandoffNavigationTarget | null>(null);
   const roomOpener = useRef<HTMLButtonElement | null>(null);
   const selectedTodo = selectedTodoId ? state.todos.find((todo) => todo.id === selectedTodoId && todo.status !== "DELETED") ?? null : null;
   function changeRole(nextRole: DemoRole) { window.localStorage.setItem(DEMO_ROLE_STORAGE_KEY, nextRole); publishDemoRoleChange(); setSelectedTodoId(null); if (nextRole !== "FRONT_DESK") { setSection("DASHBOARD"); setHandoffTarget(null); } }
-  function goToDashboard() { setSection("DASHBOARD"); setHandoffTarget(null); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }
-  function changeSection(next: AppSection) { if(next!=="SHIFT_HANDOFF") setHandoffTarget(null); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); setSection(next); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function goToDashboard() { setIncidentCreate(false); setSection("DASHBOARD"); setHandoffTarget(null); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function changeSection(next: AppSection) { setIncidentCreate(false); if(next!=="SHIFT_HANDOFF") setHandoffTarget(null); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); setSection(next); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function openHandoff(target?: HandoffNavigationTarget) { setHandoffTarget(target ?? null); setSection("SHIFT_HANDOFF"); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); window.scrollTo({top:0,behavior:"smooth"}); }
   const handlers = {
     onCreate: (draft: TodoDraft) => { const todo = addTodo(draft); setMessage(`To-do created for Room ${todo.roomNumber}.`); },
@@ -70,8 +73,8 @@ export function Dashboard() {
     <AppHeader role={role} section={section} onHome={goToDashboard} onSectionChange={changeSection} onRoleChange={changeRole} onCreateOpenChange={setCreateOpen} />
     <div className="sr-only" role="status" aria-live="polite">{message}</div>
     <main className="mx-auto w-full max-w-[1480px] space-y-4 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
-      {section === "DASHBOARD" ? <AnnouncementDashboardPanel role={role} onOpen={() => changeSection("ANNOUNCEMENTS")} announce={setMessage} /> : null}
-      {section === "ANNOUNCEMENTS" ? <AnnouncementsDashboard role={role} announce={setMessage} /> : section === "LOST_AND_FOUND" ? <LostFoundDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "ROOM_PM" ? <RoomPmDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "SHIFT_HANDOFF" && role === "FRONT_DESK" ? <ShiftHandoffDashboard rooms={rooms.map(r=>r.number)} target={handoffTarget} requestCounts={{open:getOpenTodos(state.todos).length,inProgress:getInProgressTodos(state.todos).length,needsAttention:getUnableTodos(state.todos).length}} announce={setMessage}/> : section === "FRONT_DESK_CHECKLIST" && role === "FRONT_DESK" ? <FrontDeskChecklistDashboard announce={setMessage} onOpenHandoff={openHandoff} /> : role === "FRONT_DESK" ? <FrontDeskDashboard rooms={rooms} todos={state.todos} logEntries={state.logEntries} onSelectRoom={(room, button) => { roomOpener.current = button; setSelectedRoom(room); }} onSelectRequest={setSelectedTodoId} onOpenChecklists={() => changeSection("FRONT_DESK_CHECKLIST")} onOpenHandoffs={()=>openHandoff()} /> : <DepartmentDashboard role={role} todos={state.todos} onSelectRequest={setSelectedTodoId} onStart={handlers.onStart} />}
+      {section === "DASHBOARD" ? <><AnnouncementDashboardPanel role={role} onOpen={() => changeSection("ANNOUNCEMENTS")} announce={setMessage} /><IncidentDashboardPanel onOpen={() => changeSection("INCIDENT_REPORTS")} onCreate={() => { setIncidentCreate(true); changeSection("INCIDENT_REPORTS"); setIncidentCreate(true); }} /></> : null}
+      {section === "INCIDENT_REPORTS" ? <IncidentReportsDashboard role={role} rooms={rooms.map(r => r.number)} announce={setMessage} initialCreate={incidentCreate} /> : section === "ANNOUNCEMENTS" ? <AnnouncementsDashboard role={role} announce={setMessage} /> : section === "LOST_AND_FOUND" ? <LostFoundDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "ROOM_PM" ? <RoomPmDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "SHIFT_HANDOFF" && role === "FRONT_DESK" ? <ShiftHandoffDashboard rooms={rooms.map(r=>r.number)} target={handoffTarget} requestCounts={{open:getOpenTodos(state.todos).length,inProgress:getInProgressTodos(state.todos).length,needsAttention:getUnableTodos(state.todos).length}} announce={setMessage}/> : section === "FRONT_DESK_CHECKLIST" && role === "FRONT_DESK" ? <FrontDeskChecklistDashboard announce={setMessage} onOpenHandoff={openHandoff} /> : role === "FRONT_DESK" ? <FrontDeskDashboard rooms={rooms} todos={state.todos} logEntries={state.logEntries} onSelectRoom={(room, button) => { roomOpener.current = button; setSelectedRoom(room); }} onSelectRequest={setSelectedTodoId} onOpenChecklists={() => changeSection("FRONT_DESK_CHECKLIST")} onOpenHandoffs={()=>openHandoff()} /> : <DepartmentDashboard role={role} todos={state.todos} onSelectRequest={setSelectedTodoId} onStart={handlers.onStart} />}
     </main>
     {createOpen ? <Modal title="Create to-do" onClose={() => setCreateOpen(false)}><TodoForm rooms={rooms} preset={{}} onCancel={() => setCreateOpen(false)} onSubmit={(draft) => { handlers.onCreate(draft); setCreateOpen(false); }} /></Modal> : null}
     {selectedRoom ? <RoomDetailsDrawer room={selectedRoom} rooms={rooms} todos={state.todos} onClose={() => { setSelectedRoom(null); window.requestAnimationFrame(() => roomOpener.current?.focus()); }} onCreate={handlers.onCreate} onSelectRequest={(id) => { setSelectedRoom(null); setSelectedTodoId(id); }} /> : null}

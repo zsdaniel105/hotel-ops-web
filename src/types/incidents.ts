@@ -1,0 +1,17 @@
+import type { DemoRole } from "@/types/hotel-operations";
+import type { SignatureStroke } from "@/types/signature";
+export type IncidentCategory="GUEST_COMPLAINT"|"INJURY_OR_MEDICAL"|"SECURITY"|"PROPERTY_DAMAGE"|"EMPLOYEE_INCIDENT"|"FIRE_OR_EVACUATION"|"POLICE_OR_EMERGENCY_RESPONSE"|"THEFT_OR_MISSING_PROPERTY"|"BILLING_OR_GUEST_RECOVERY"|"MAINTENANCE_OR_SAFETY"|"OPERATIONAL_DISRUPTION"|"OTHER";
+export type IncidentSeverity="LOW"|"MEDIUM"|"HIGH"|"CRITICAL";
+export type IncidentDisplayStatus="DRAFT"|"SUBMITTED"|"FOLLOW_UP_REQUIRED"|"CLOSED";
+export type IncidentPersonType="GUEST"|"EMPLOYEE"|"VISITOR"|"CONTRACTOR"|"OTHER";
+export type IncidentPerson={id:string;personType:IncidentPersonType;name:string;contactInformation:string|null;roomNumber:number|null;notes:string|null};
+export type IncidentWitness={id:string;name:string;contactInformation:string|null;statement:string|null};
+export type EmergencyServices={hotelSecurityNotified:boolean;policeNotified:boolean;fireDepartmentNotified:boolean;emsNotified:boolean;contactedAt:string|null;agencyReferenceNumber:string|null;details:string|null};
+export type GuestRecoveryType="NONE"|"REFUND"|"DISCOUNT"|"POINTS"|"COMPLIMENTARY_ITEM"|"ROOM_MOVE"|"LATE_CHECKOUT"|"OTHER";
+export type IncidentGuestRecovery={provided:boolean;recoveryType:GuestRecoveryType;amount:number|null;currency:"USD";details:string|null;approvedBy:string|null};
+export type IncidentReporterAttestation={printedName:string;role:DemoRole;signedAt:string;signatureStrokes:SignatureStroke[]};
+export type IncidentFollowUp={id:string;note:string;addedByName:string;addedByRole:DemoRole;createdAt:string};
+export type IncidentClosure={resolutionNote:string;closedByName:string;closedByRole:DemoRole;closedAt:string};
+export type IncidentReport={id:string;incidentNumber:string;category:IncidentCategory;severity:IncidentSeverity;title:string;occurredAt:string;reportedAt:string;location:string;roomNumber:number|null;description:string;immediateActionsTaken:string;involvedPeople:IncidentPerson[];witnesses:IncidentWitness[];emergencyServices:EmergencyServices;guestRecovery:IncidentGuestRecovery;followUpRequired:boolean;followUpOwner:string|null;followUpDueAt:string|null;reporterAttestation:IncidentReporterAttestation|null;submittedAt:string|null;followUps:IncidentFollowUp[];closure:IncidentClosure|null;createdAt:string;updatedAt:string};
+export type IncidentReportState={version:1;incidents:IncidentReport[]};
+export type IncidentDraft=Omit<IncidentReport,"id"|"incidentNumber"|"reporterAttestation"|"submittedAt"|"followUps"|"closure"|"createdAt"|"updatedAt">;

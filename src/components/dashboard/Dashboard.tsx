@@ -51,18 +51,19 @@ export function Dashboard() {
     onDelete: (id: string) => { const todo = deleteTodo(id); if (todo) { setMessage(`Request deleted for Room ${todo.roomNumber}.`); setSelectedTodoId(null); } },
   };
   return <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
-    <AppHeader rooms={rooms} role={role} createOpen={createOpen} onRoleChange={changeRole} onCreateOpenChange={setCreateOpen} onCreate={handlers.onCreate} />
+    <AppHeader role={role} onRoleChange={changeRole} onCreateOpenChange={setCreateOpen} />
     <div className="sr-only" role="status" aria-live="polite">{message}</div>
     <main className="mx-auto w-full max-w-[1480px] space-y-4 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
       {role === "FRONT_DESK" ? <FrontDeskDashboard rooms={rooms} todos={state.todos} logEntries={state.logEntries} onSelectRoom={(room, button) => { roomOpener.current = button; setSelectedRoom(room); }} onSelectRequest={setSelectedTodoId} /> : <DepartmentDashboard role={role} todos={state.todos} onSelectRequest={setSelectedTodoId} onStart={handlers.onStart} />}
     </main>
+    {createOpen ? <Modal title="Create to-do" onClose={() => setCreateOpen(false)}><TodoForm rooms={rooms} preset={{}} onCancel={() => setCreateOpen(false)} onSubmit={(draft) => { handlers.onCreate(draft); setCreateOpen(false); }} /></Modal> : null}
     {selectedRoom ? <RoomDetailsDrawer room={selectedRoom} rooms={rooms} todos={state.todos} onClose={() => { setSelectedRoom(null); window.requestAnimationFrame(() => roomOpener.current?.focus()); }} onCreate={handlers.onCreate} onSelectRequest={(id) => { setSelectedRoom(null); setSelectedTodoId(id); }} /> : null}
     {selectedTodo ? <RequestDetailsDrawer todo={selectedTodo} role={role} rooms={rooms} logEntries={state.logEntries} onClose={() => setSelectedTodoId(null)} {...handlers} /> : null}
   </div>;
 }
 
-function AppHeader({ rooms, role, createOpen, onRoleChange, onCreateOpenChange, onCreate }: { rooms: Room[]; role: DemoRole; createOpen: boolean; onRoleChange: (role: DemoRole) => void; onCreateOpenChange: (open: boolean) => void; onCreate: (draft: TodoDraft) => void }) {
-  return <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg bg-teal-800 text-sm font-black text-white">HO</span><div><p className="text-sm font-bold text-slate-950">Hotel Operations</p><p className="text-xs text-slate-500">Single-browser prototype</p></div></div><div className="flex flex-wrap items-center gap-2"><DemoRoleSelector role={role} onRoleChange={onRoleChange} />{role === "FRONT_DESK" ? <button type="button" onClick={() => onCreateOpenChange(true)} className="btn-primary">Create To-do</button> : null}<span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">Prototype</span></div></div>{createOpen ? <Modal title="Create to-do" onClose={() => onCreateOpenChange(false)}><TodoForm rooms={rooms} preset={{}} onCancel={() => onCreateOpenChange(false)} onSubmit={(draft) => { onCreate(draft); onCreateOpenChange(false); }} /></Modal> : null}</header>;
+function AppHeader({ role, onRoleChange, onCreateOpenChange }: { role: DemoRole; onRoleChange: (role: DemoRole) => void; onCreateOpenChange: (open: boolean) => void }) {
+  return <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg bg-teal-800 text-sm font-black text-white">HO</span><div><p className="text-sm font-bold text-slate-950">Hotel Operations</p><p className="text-xs text-slate-500">Single-browser prototype</p></div></div><div className="flex flex-wrap items-center gap-2"><DemoRoleSelector role={role} onRoleChange={onRoleChange} />{role === "FRONT_DESK" ? <button type="button" onClick={() => onCreateOpenChange(true)} className="btn-primary">Create To-do</button> : null}<span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">Prototype</span></div></div></header>;
 }
 
 function DemoRoleSelector({ role, onRoleChange }: { role: DemoRole; onRoleChange: (role: DemoRole) => void }) {

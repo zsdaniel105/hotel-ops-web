@@ -11,6 +11,10 @@ export function Modal({ title, description, children, footer, onClose, labelledB
   const panelRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const layerIdRef = useRef<number | null>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     layerIdRef.current = registerDialogLayer();
@@ -22,7 +26,7 @@ export function Modal({ title, description, children, footer, onClose, labelledB
     function onKeyDown(event: KeyboardEvent) {
       const layerId = layerIdRef.current;
       if (!layerId || !isTopDialogLayer(layerId)) return;
-      if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); onClose(); return; }
+      if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); onCloseRef.current(); return; }
       if (event.key !== "Tab" || !panelRef.current) return;
       const focusables = Array.from(panelRef.current.querySelectorAll<HTMLElement>(focusableSelector)).filter((el) => !el.hasAttribute("disabled"));
       if (!focusables.length) { event.preventDefault(); panelRef.current.focus(); return; }
@@ -37,7 +41,7 @@ export function Modal({ title, description, children, footer, onClose, labelledB
       if (layerIdRef.current) unregisterDialogLayer(layerIdRef.current);
       openerRef.current?.focus();
     };
-  }, [onClose]);
+  }, []);
   const headingId = labelledBy ?? titleId;
   return <div className="fixed inset-0 z-[60] grid place-items-end bg-slate-950/45 p-3 sm:place-items-center" onMouseDown={onClose}>
     <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={headingId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline-none" onMouseDown={(event) => event.stopPropagation()}>

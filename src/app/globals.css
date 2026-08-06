@@ -77,3 +77,12 @@ button, a {
     min-height: 2.75rem;
   }
 }
+
+button:disabled { cursor: not-allowed; opacity: .5; }
+@media print {
+  body { background: white !important; }
+  header, .checklist-navigation, .print\:hidden, [role="dialog"] { display: none !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  .print-record { border: 0; box-shadow: none; padding: 0; }
+  .print\:block { display: block !important; }
+}

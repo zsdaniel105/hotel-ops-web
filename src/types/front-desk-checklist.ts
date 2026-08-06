@@ -1,0 +1,10 @@
+export type FrontDeskShift = "AM" | "PM" | "NIGHT";
+export type ChecklistItemOutcome = "PENDING" | "COMPLETED" | "EXCEPTION";
+export type FrontDeskChecklistStatus = "NOT_STARTED" | "IN_PROGRESS" | "READY_TO_SIGN" | "SIGNED";
+export type ChecklistTemplateItem = { id: string; label: string; order: number };
+export type ChecklistItemRecord = { templateItemId: string; labelSnapshot: string; order: number; outcome: ChecklistItemOutcome; note: string | null; resolvedAt: string | null };
+export type SignaturePoint = { x: number; y: number };
+export type SignatureStroke = { points: SignaturePoint[] };
+export type ChecklistSignature = { signedBy: string; signedAt: string; strokes: SignatureStroke[] };
+export type FrontDeskChecklistInstance = { id: string; localDate: string; shift: FrontDeskShift; templateVersion: 1; items: ChecklistItemRecord[]; generalNotes: string | null; signature: ChecklistSignature | null; createdAt: string; updatedAt: string };
+export type FrontDeskChecklistState = { version: 1; instances: FrontDeskChecklistInstance[] };

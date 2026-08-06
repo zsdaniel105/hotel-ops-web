@@ -1,0 +1,2 @@
+import {describe,expect,it} from "vitest";import {normalizedPoint} from "../SignaturePad";import {isMeaningfulSignature} from "@/lib/front-desk-checklist";
+describe("SignaturePad helpers",()=>{it("normalizes and clamps pointer coordinates",()=>{expect(normalizedPoint(60,35,{left:10,top:10,width:100,height:50})).toEqual({x:.5,y:.5});expect(normalizedPoint(-1,100,{left:0,top:0,width:10,height:10})).toEqual({x:0,y:1})});it("rejects an accidental tap",()=>expect(isMeaningfulSignature([{points:[{x:.5,y:.5}]}])).toBe(false))});

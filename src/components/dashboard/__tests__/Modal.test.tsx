@@ -16,9 +16,12 @@ describe("Modal", () => {
     const close = vi.fn();
     render(<><button>Opener</button><Modal title="Request details" onClose={close}><button>First</button><button>Last</button></Modal></>);
     expect(screen.getByRole("dialog", { name: "Request details" })).toHaveAttribute("aria-modal", "true");
+    expect(screen.getByRole("button", { name: "Close dialog" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Close dialog" }));
+    expect(close).toHaveBeenCalledTimes(1);
     await user.tab();
     await user.keyboard("{Escape}");
-    expect(close).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(2);
   });
 
   it("closes nested confirmation before parent", async () => {

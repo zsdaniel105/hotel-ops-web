@@ -12,6 +12,8 @@ import { PriorityBadge, StatusBadge } from "@/components/dashboard/ui/Badge";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { Modal } from "@/components/dashboard/ui/Modal";
 import { Tabs } from "@/components/dashboard/ui/Tabs";
+import { OperationsMenu, type AppSection } from "@/components/dashboard/ui/OperationsMenu";
+import { LostFoundDashboard } from "@/components/lost-found/LostFoundDashboard";
 import type { DemoRole, LogBookEntry, Room, Todo, TodoPriority, TodoType } from "@/types/hotel-operations";
 
 type FormPreset = { roomNumber?: number; type?: TodoType };
@@ -37,6 +39,7 @@ export function Dashboard() {
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [section, setSection] = useState<AppSection>("DASHBOARD");
   const roomOpener = useRef<HTMLButtonElement | null>(null);
   const selectedTodo = selectedTodoId ? state.todos.find((todo) => todo.id === selectedTodoId && todo.status !== "DELETED") ?? null : null;
   function changeRole(nextRole: DemoRole) { window.localStorage.setItem(DEMO_ROLE_STORAGE_KEY, nextRole); publishDemoRoleChange(); setSelectedTodoId(null); }
@@ -51,10 +54,10 @@ export function Dashboard() {
     onDelete: (id: string) => { const todo = deleteTodo(id); if (todo) { setMessage(`Request deleted for Room ${todo.roomNumber}.`); setSelectedTodoId(null); } },
   };
   return <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
-    <AppHeader role={role} onRoleChange={changeRole} onCreateOpenChange={setCreateOpen} />
+    <AppHeader role={role} section={section} onSectionChange={setSection} onRoleChange={changeRole} onCreateOpenChange={setCreateOpen} />
     <div className="sr-only" role="status" aria-live="polite">{message}</div>
     <main className="mx-auto w-full max-w-[1480px] space-y-4 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
-      {role === "FRONT_DESK" ? <FrontDeskDashboard rooms={rooms} todos={state.todos} logEntries={state.logEntries} onSelectRoom={(room, button) => { roomOpener.current = button; setSelectedRoom(room); }} onSelectRequest={setSelectedTodoId} /> : <DepartmentDashboard role={role} todos={state.todos} onSelectRequest={setSelectedTodoId} onStart={handlers.onStart} />}
+      {section === "LOST_AND_FOUND" ? <LostFoundDashboard role={role} rooms={rooms} announce={setMessage} /> : role === "FRONT_DESK" ? <FrontDeskDashboard rooms={rooms} todos={state.todos} logEntries={state.logEntries} onSelectRoom={(room, button) => { roomOpener.current = button; setSelectedRoom(room); }} onSelectRequest={setSelectedTodoId} /> : <DepartmentDashboard role={role} todos={state.todos} onSelectRequest={setSelectedTodoId} onStart={handlers.onStart} />}
     </main>
     {createOpen ? <Modal title="Create to-do" onClose={() => setCreateOpen(false)}><TodoForm rooms={rooms} preset={{}} onCancel={() => setCreateOpen(false)} onSubmit={(draft) => { handlers.onCreate(draft); setCreateOpen(false); }} /></Modal> : null}
     {selectedRoom ? <RoomDetailsDrawer room={selectedRoom} rooms={rooms} todos={state.todos} onClose={() => { setSelectedRoom(null); window.requestAnimationFrame(() => roomOpener.current?.focus()); }} onCreate={handlers.onCreate} onSelectRequest={(id) => { setSelectedRoom(null); setSelectedTodoId(id); }} /> : null}
@@ -62,8 +65,8 @@ export function Dashboard() {
   </div>;
 }
 
-function AppHeader({ role, onRoleChange, onCreateOpenChange }: { role: DemoRole; onRoleChange: (role: DemoRole) => void; onCreateOpenChange: (open: boolean) => void }) {
-  return <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg bg-teal-800 text-sm font-black text-white">HO</span><div><p className="text-sm font-bold text-slate-950">Hotel Operations</p><p className="text-xs text-slate-500">Single-browser prototype</p></div></div><div className="flex flex-wrap items-center gap-2"><DemoRoleSelector role={role} onRoleChange={onRoleChange} />{role === "FRONT_DESK" ? <button type="button" onClick={() => onCreateOpenChange(true)} className="btn-primary">Create To-do</button> : null}<span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">Prototype</span></div></div></header>;
+function AppHeader({ role, section, onSectionChange, onRoleChange, onCreateOpenChange }: { role: DemoRole; section: AppSection; onSectionChange: (section: AppSection) => void; onRoleChange: (role: DemoRole) => void; onCreateOpenChange: (open: boolean) => void }) {
+  return <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg bg-teal-800 text-sm font-black text-white">HO</span><div><p className="text-sm font-bold text-slate-950">Hotel Operations</p><p className="text-xs text-slate-500">Single-browser prototype</p></div></div><div className="flex flex-wrap items-center gap-2"><OperationsMenu section={section} onChange={onSectionChange}/><DemoRoleSelector role={role} onRoleChange={onRoleChange} />{role === "FRONT_DESK" && section === "DASHBOARD" ? <button type="button" onClick={() => onCreateOpenChange(true)} className="btn-primary">Create To-do</button> : null}<span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">Prototype</span></div></div></header>;
 }
 
 function DemoRoleSelector({ role, onRoleChange }: { role: DemoRole; onRoleChange: (role: DemoRole) => void }) {

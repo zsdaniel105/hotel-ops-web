@@ -7,9 +7,10 @@ type TabItem<T extends string> = { value: T; label: string; count?: number };
 export function Tabs<T extends string>({ label, value, tabs, onChange, children }: { label: string; value: T; tabs: readonly TabItem<T>[]; onChange: (value: T) => void; children?: React.ReactNode }) {
   const baseId = useId();
   function move(nextIndex: number) {
+    if (!tabs.length) return;
     const next = tabs[(nextIndex + tabs.length) % tabs.length];
+    document.getElementById(`${baseId}-${next.value}-tab`)?.focus();
     onChange(next.value);
-    window.requestAnimationFrame(() => document.getElementById(`${baseId}-${next.value}-tab`)?.focus());
   }
   return <>
     <div role="tablist" aria-label={label} className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1">

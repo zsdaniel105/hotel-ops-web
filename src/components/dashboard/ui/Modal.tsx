@@ -45,7 +45,7 @@ export function Modal({ title, description, children, footer, onClose, labelledB
   const headingId = labelledBy ?? titleId;
   return <div className="fixed inset-0 z-[60] grid place-items-end bg-slate-950/45 p-3 sm:place-items-center" onMouseDown={onClose}>
     <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={headingId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline-none" onMouseDown={(event) => event.stopPropagation()}>
-      <header className="border-b border-slate-200 p-4"><h2 id={headingId} className="text-lg font-bold text-slate-950">{title}</h2>{description ? <p id={descriptionId} className="mt-1 text-sm text-slate-600">{description}</p> : null}</header>
+      <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-4"><div className="min-w-0"><h2 id={headingId} className="break-words text-lg font-bold text-slate-950">{title}</h2>{description ? <p id={descriptionId} className="mt-1 break-words text-sm text-slate-600">{description}</p> : null}</div><button type="button" aria-label="Close dialog" title="Close" onClick={onClose} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg text-2xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-h-9 sm:min-w-9"><span aria-hidden="true">×</span></button></header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
       {footer ? <footer className="sticky bottom-0 border-t border-slate-200 bg-white p-4">{footer}</footer> : null}
     </div>

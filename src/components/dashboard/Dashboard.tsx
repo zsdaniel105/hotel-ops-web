@@ -16,8 +16,12 @@ import { OperationsMenu, type AppSection } from "@/components/dashboard/ui/Opera
 import { LostFoundDashboard } from "@/components/lost-found/LostFoundDashboard";
 import { RoomPmDashboard } from "@/components/room-pm/RoomPmDashboard";
 import { FrontDeskChecklistDashboard } from "@/components/front-desk-checklist/FrontDeskChecklistDashboard";
+import { ShiftHandoffDashboard } from "@/components/shift-handoff/ShiftHandoffDashboard";
 import { useFrontDeskChecklistState } from "@/hooks/useFrontDeskChecklistState";
+import { useShiftHandoffState } from "@/hooks/useShiftHandoffState";
 import { formatLocalDate, getDailyStatuses } from "@/lib/front-desk-checklist";
+import { getDailyShiftHandoffStatuses } from "@/lib/shift-handoff";
+import type { HandoffNavigationTarget } from "@/types/shift-handoff";
 import type { DemoRole, LogBookEntry, Room, Todo, TodoPriority, TodoType } from "@/types/hotel-operations";
 
 type FormPreset = { roomNumber?: number; type?: TodoType };
@@ -44,11 +48,13 @@ export function Dashboard() {
   const [createOpen, setCreateOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [section, setSection] = useState<AppSection>("DASHBOARD");
+  const [handoffTarget, setHandoffTarget] = useState<HandoffNavigationTarget | null>(null);
   const roomOpener = useRef<HTMLButtonElement | null>(null);
   const selectedTodo = selectedTodoId ? state.todos.find((todo) => todo.id === selectedTodoId && todo.status !== "DELETED") ?? null : null;
-  function changeRole(nextRole: DemoRole) { window.localStorage.setItem(DEMO_ROLE_STORAGE_KEY, nextRole); publishDemoRoleChange(); setSelectedTodoId(null); if (nextRole !== "FRONT_DESK") setSection("DASHBOARD"); }
-  function goToDashboard() { setSection("DASHBOARD"); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }
-  function changeSection(next: AppSection) { setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); setSection(next); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function changeRole(nextRole: DemoRole) { window.localStorage.setItem(DEMO_ROLE_STORAGE_KEY, nextRole); publishDemoRoleChange(); setSelectedTodoId(null); if (nextRole !== "FRONT_DESK") { setSection("DASHBOARD"); setHandoffTarget(null); } }
+  function goToDashboard() { setSection("DASHBOARD"); setHandoffTarget(null); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function changeSection(next: AppSection) { if(next!=="SHIFT_HANDOFF") setHandoffTarget(null); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); setSection(next); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function openHandoff(target?: HandoffNavigationTarget) { setHandoffTarget(target ?? null); setSection("SHIFT_HANDOFF"); setSelectedRoom(null); setSelectedTodoId(null); setCreateOpen(false); window.scrollTo({top:0,behavior:"smooth"}); }
   const handlers = {
     onCreate: (draft: TodoDraft) => { const todo = addTodo(draft); setMessage(`To-do created for Room ${todo.roomNumber}.`); },
     onUpdate: (id: string, draft: TodoDraft) => { const todo = updateTodo(id, draft); setMessage(todo ? `Request updated for Room ${todo.roomNumber}.` : "No request changes saved."); },
@@ -63,7 +69,7 @@ export function Dashboard() {
     <AppHeader role={role} section={section} onHome={goToDashboard} onSectionChange={changeSection} onRoleChange={changeRole} onCreateOpenChange={setCreateOpen} />
     <div className="sr-only" role="status" aria-live="polite">{message}</div>
     <main className="mx-auto w-full max-w-[1480px] space-y-4 px-3 py-4 sm:px-4 lg:px-6 lg:py-5">
-      {section === "LOST_AND_FOUND" ? <LostFoundDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "ROOM_PM" ? <RoomPmDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "FRONT_DESK_CHECKLIST" && role === "FRONT_DESK" ? <FrontDeskChecklistDashboard announce={setMessage} /> : role === "FRONT_DESK" ? <FrontDeskDashboard rooms={rooms} todos={state.todos} logEntries={state.logEntries} onSelectRoom={(room, button) => { roomOpener.current = button; setSelectedRoom(room); }} onSelectRequest={setSelectedTodoId} onOpenChecklists={() => changeSection("FRONT_DESK_CHECKLIST")} /> : <DepartmentDashboard role={role} todos={state.todos} onSelectRequest={setSelectedTodoId} onStart={handlers.onStart} />}
+      {section === "LOST_AND_FOUND" ? <LostFoundDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "ROOM_PM" ? <RoomPmDashboard role={role} rooms={rooms} announce={setMessage} /> : section === "SHIFT_HANDOFF" && role === "FRONT_DESK" ? <ShiftHandoffDashboard rooms={rooms.map(r=>r.number)} target={handoffTarget} requestCounts={{open:getOpenTodos(state.todos).length,inProgress:getInProgressTodos(state.todos).length,needsAttention:getUnableTodos(state.todos).length}} announce={setMessage}/> : section === "FRONT_DESK_CHECKLIST" && role === "FRONT_DESK" ? <FrontDeskChecklistDashboard announce={setMessage} onOpenHandoff={openHandoff} /> : role === "FRONT_DESK" ? <FrontDeskDashboard rooms={rooms} todos={state.todos} logEntries={state.logEntries} onSelectRoom={(room, button) => { roomOpener.current = button; setSelectedRoom(room); }} onSelectRequest={setSelectedTodoId} onOpenChecklists={() => changeSection("FRONT_DESK_CHECKLIST")} onOpenHandoffs={()=>openHandoff()} /> : <DepartmentDashboard role={role} todos={state.todos} onSelectRequest={setSelectedTodoId} onStart={handlers.onStart} />}
     </main>
     {createOpen ? <Modal title="Create to-do" onClose={() => setCreateOpen(false)}><TodoForm rooms={rooms} preset={{}} onCancel={() => setCreateOpen(false)} onSubmit={(draft) => { handlers.onCreate(draft); setCreateOpen(false); }} /></Modal> : null}
     {selectedRoom ? <RoomDetailsDrawer room={selectedRoom} rooms={rooms} todos={state.todos} onClose={() => { setSelectedRoom(null); window.requestAnimationFrame(() => roomOpener.current?.focus()); }} onCreate={handlers.onCreate} onSelectRequest={(id) => { setSelectedRoom(null); setSelectedTodoId(id); }} /> : null}
@@ -79,12 +85,14 @@ function DemoRoleSelector({ role, onRoleChange }: { role: DemoRole; onRoleChange
   return <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">Demo role<select value={role} onChange={(event) => onRoleChange(event.target.value as DemoRole)} className="form-input min-h-11 text-xs sm:min-h-9"><option value="FRONT_DESK">Front Desk</option><option value="HOUSEKEEPING_SUPERVISOR">Housekeeping Supervisor</option><option value="MAINTENANCE_MANAGER">Maintenance Manager</option></select></label>;
 }
 
-function FrontDeskDashboard({ rooms, todos, logEntries, onSelectRoom, onSelectRequest, onOpenChecklists }: { rooms: Room[]; todos: Todo[]; logEntries: LogBookEntry[]; onSelectRoom: (room: Room, button: HTMLButtonElement) => void; onSelectRequest: (todoId: string) => void; onOpenChecklists: () => void }) {
+function FrontDeskDashboard({ rooms, todos, logEntries, onSelectRoom, onSelectRequest, onOpenChecklists, onOpenHandoffs }: { rooms: Room[]; todos: Todo[]; logEntries: LogBookEntry[]; onSelectRoom: (room: Room, button: HTMLButtonElement) => void; onSelectRequest: (todoId: string) => void; onOpenChecklists: () => void; onOpenHandoffs: () => void }) {
   const counts = getFrontDeskCounts(todos);
-  return <><PageIntro title="Front Desk Operations" description="Monitor requests, room attention, and shift activity." /><SummaryStats stats={[['Rooms', rooms.length], ['Open', counts.OPEN], ['In Progress', counts.IN_PROGRESS], ['Needs Attention', counts.UNABLE_TO_COMPLETE]]} /><TodayChecklistSummary onOpen={onOpenChecklists} /><RoomBoard rooms={rooms} todos={todos} onSelectRoom={onSelectRoom} /><FrontDeskRequests todos={todos} onSelectRequest={onSelectRequest} /><OperationsPanels logEntries={logEntries} /></>;
+  return <><PageIntro title="Front Desk Operations" description="Monitor requests, room attention, and shift activity." /><SummaryStats stats={[['Rooms', rooms.length], ['Open', counts.OPEN], ['In Progress', counts.IN_PROGRESS], ['Needs Attention', counts.UNABLE_TO_COMPLETE]]} /><div className="grid gap-4 lg:grid-cols-2"><TodayChecklistSummary onOpen={onOpenChecklists} /><TodayHandoffSummary onOpen={onOpenHandoffs} /></div><RoomBoard rooms={rooms} todos={todos} onSelectRoom={onSelectRoom} /><FrontDeskRequests todos={todos} onSelectRequest={onSelectRequest} /><OperationsPanels logEntries={logEntries} /></>;
 }
 
 function TodayChecklistSummary({ onOpen }: { onOpen: () => void }) { const { state } = useFrontDeskChecklistState(); const statuses = getDailyStatuses(state, formatLocalDate()); const labels = { NOT_STARTED: "Not Started", IN_PROGRESS: "In Progress", READY_TO_SIGN: "Ready to Sign", SIGNED: "Signed" }; return <section className="panel"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="section-title">Today’s Front Desk Checklists</h2><p className="mt-1 text-sm text-slate-600">AM — {labels[statuses.AM]} · PM — {labels[statuses.PM]} · Night — {labels[statuses.NIGHT]}</p></div><button className="btn-primary" onClick={onOpen}>Open Checklists</button></div></section>; }
+
+function TodayHandoffSummary({ onOpen }: { onOpen: () => void }) { const {state}=useShiftHandoffState();const statuses=getDailyShiftHandoffStatuses(state,formatLocalDate());const labels={NOT_STARTED:"Not Started",DRAFT:"Draft",SUBMITTED:"Awaiting Acknowledgement",ACKNOWLEDGED:"Acknowledged"};return <section className="panel"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="section-title">Today’s Shift Handoffs</h2><p className="mt-1 text-sm text-slate-600">AM → PM — {labels[statuses.AM]} · PM → Night — {labels[statuses.PM]} · Night → AM — {labels[statuses.NIGHT]}</p></div><button className="btn-primary" onClick={onOpen}>Open Handoffs</button></div></section>}
 
 function DepartmentDashboard({ role, todos, onSelectRequest, onStart }: { role: DemoRole; todos: Todo[]; onSelectRequest: (todoId: string) => void; onStart: (todoId: string) => void }) {
   const [tab, setTab] = useState<DepartmentTab>("OPEN");

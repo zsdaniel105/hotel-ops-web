@@ -1,0 +1,5 @@
+import type {IncidentReport} from "@/types/incidents";
+import {buildIncidentPdfDefinition,sanitizeIncidentPdfFilename} from "@/lib/incident-pdf-definition";
+export {buildIncidentPdfDefinition,sanitizeIncidentPdfFilename} from "@/lib/incident-pdf-definition";
+export async function generateIncidentPdfBlob(i:IncidentReport,generatedAt=new Date().toISOString()){const definition=buildIncidentPdfDefinition(i,generatedAt);const [{default:pdfMake},{default:fonts}]=await Promise.all([import("pdfmake/build/pdfmake"),import("pdfmake/build/vfs_fonts")]);pdfMake.vfs=fonts.pdfMake?.vfs??fonts.vfs??{};return new Promise<Blob>((resolve,reject)=>{try{pdfMake.createPdf(definition).getBlob(resolve)}catch(error){reject(error)}})}
+export async function downloadIncidentPdf(i:IncidentReport){const blob=await generateIncidentPdfBlob(i);const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=sanitizeIncidentPdfFilename(i.incidentNumber);a.click();setTimeout(()=>URL.revokeObjectURL(url),0)}

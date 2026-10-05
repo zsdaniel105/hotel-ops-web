@@ -1,14 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hotel-ops-web",
-  "main": ".vinext/worker.js",
+  // vinext's Cloudflare Vite integration resolves this virtual entry.
+  "main": "vinext/server/app-router-entry",
   "compatibility_date": "2026-10-05",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": { "directory": ".vinext/assets", "binding": "ASSETS" },
-  "d1_databases": [{ "binding": "DB", "database_name": "hotel-ops", "database_id": "REPLACE_AFTER_WRANGLER_D1_CREATE", "migrations_dir": "migrations" }],
+  "assets": { "binding": "ASSETS", "not_found_handling": "none" },
+  // Add DB only after `wrangler d1 create hotel-ops` returns its real database_id.
   "r2_buckets": [{ "binding": "ATTACHMENTS", "bucket_name": "hotel-ops-attachments" }],
-  "durable_objects": { "bindings": [{ "name": "PROPERTY_REALTIME", "class_name": "PropertyRealtime" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PropertyRealtime"] }],
-  "triggers": { "crons": ["*/15 * * * *"] },
   "vars": { "MAX_UPLOAD_BYTES": "10485760" }
 }

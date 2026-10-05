@@ -90,7 +90,7 @@ npm install
 npm run dev
 ```
 
-The normal Next.js development workflow remains available while the Workers runtime is initialized separately. Production is **Cloudflare Workers only**; the retired `hotel-ops-web.pages.dev` Cloudflare Pages site is not a deployment target.
+The normal Next.js development workflow remains available. No Worker deployment is configured in this repository yet: after this cleanup is merged, import `zsdaniel105/hotel-ops-web` from **Cloudflare Dashboard → Workers & Pages → Create application → Import a repository** and select `main` as the production branch. Cloudflare Workers automatic configuration should detect Next.js and generate the current vinext configuration in its own pull request. Production is **Cloudflare Workers only**; neither Netlify nor the retired `hotel-ops-web.pages.dev` Cloudflare Pages site is a deployment target.
 
 ## Quality checks
 

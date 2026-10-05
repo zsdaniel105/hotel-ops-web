@@ -1,93 +1,42 @@
 # Cloudflare Workers deployment
 
-Cloudflare Workers is the only production target. The former Cloudflare Pages hostname is retired; do not create or repair a Pages project. `wrangler.jsonc` is the source of truth for Worker bindings rather than duplicated dashboard bindings.
+Cloudflare Workers is the only intended production target. Do not deploy this application to Netlify or Cloudflare Pages. The former `hotel-ops-web.pages.dev` hostname is historical and is not a deployment target.
 
-## Verified repository state
+## Repository state before import
 
-PR #28 established the D1 schema and API boundary, but it did not install vinext or Wrangler, create Cloudflare resources, or produce a Worker build. The delivery environment blocks `registry.npmjs.org` with HTTP 403, so the official non-destructive `npx vinext check` and `npx vinext init --platform=cloudflare` operations could not be completed here. No dependency or lockfile entries have been fabricated.
+PR #28 established the versioned D1 schema, server boundary, and authenticated API v2 foundation. PR #29 is present on `main`, but its manually created `wrangler.jsonc` preceded an actual vinext installation. This cleanup removes that file so Cloudflare's official automatic configuration can recognize an unconfigured Next.js project.
 
-The Wrangler entry has been corrected from the nonexistent `.vinext/worker.js` file to vinext's current `vinext/server/app-router-entry` virtual entry. The unimplemented `PropertyRealtime` Durable Object and cron were removed: declaring a class that the Worker does not export prevents deployment. The D1 placeholder was also removed rather than replaced with a fake UUID. R2 remains declared and therefore must exist before the first deployment.
+The repository intentionally does **not** include vinext, Wrangler, a generated Vite configuration, or D1/R2/Durable Object bindings. No Worker has been created or deployed by this cleanup. The existing `migrations/`, `src/server/`, API routes, and application behavior remain in place.
 
-## Owner setup (run in this order)
+## Dashboard import workflow
 
-Use Node 24 and run these commands from a clean checkout after this branch is merged:
+No local-machine initialization or deployment step is required. Use this sequence:
 
-```bash
-npm ci
-npx vinext check
-npx vinext init --platform=cloudflare
-```
+1. Merge this cleanup pull request into `main`.
+2. Open **Cloudflare Dashboard → Workers & Pages → Create application → Import a repository**.
+3. Select `zsdaniel105/hotel-ops-web` and set the production branch to `main`.
+4. Allow Cloudflare Workers automatic configuration to detect the existing Next.js project. Do not select or create a Pages project.
+5. Cloudflare should use its current recommended Next.js Workers path, vinext, and generate the required dependencies, scripts, Vite configuration, and Wrangler configuration.
+6. If Cloudflare opens an automatic configuration pull request, review its generated files and preview deployment, then merge that Cloudflare-generated pull request.
+7. Verify that the preview or production deployment creates an actual Worker and returns a working `*.workers.dev` URL. Do not assume the historical `*.pages.dev` URL redirects.
 
-Review the initializer's generated files. Preserve the existing `dev` and `build` commands and expose separate `dev:vinext` and `build:vinext` commands if prompted. Keep the D1, R2, assets, and `MAX_UPLOAD_BYTES` settings in `wrangler.jsonc`; do not restore the Durable Object or cron until their handlers exist. Commit the real npm-generated `package.json`, `package-lock.json`, Vite configuration, and Cloudflare configuration.
+The absence of a Wrangler configuration before import is deliberate. Do not manually add vinext, Wrangler, a replacement Wrangler file, or guessed build/deploy commands before Cloudflare runs automatic configuration.
 
-Authenticate and create the private resources:
+## Configure platform resources only after the Worker exists
 
-```bash
-npx wrangler login
-npx wrangler whoami
-npx wrangler d1 create hotel-ops
-npx wrangler r2 bucket create hotel-ops-attachments
-```
+After the generated configuration is merged and the Worker is operational:
 
-Copy the returned D1 `database_id` into this entry in `wrangler.jsonc` (never invent it):
-
-```jsonc
-"d1_databases": [
-  {
-    "binding": "DB",
-    "database_name": "hotel-ops",
-    "database_id": "THE_ID_RETURNED_BY_CLOUDFLARE",
-    "migrations_dir": "migrations"
-  }
-]
-```
-
-Then generate binding types, migrate, build, and deploy:
-
-```bash
-npx wrangler types src/types/cloudflare-env.d.ts
-npx wrangler d1 migrations apply hotel-ops --local
-npx wrangler d1 migrations apply hotel-ops --remote
-npm run build:vinext
-npx @vinext/cloudflare deploy
-```
-
-Use the exact `*.workers.dev` URL printed by the deploy command. Do not assume the old `*.pages.dev` URL will redirect.
-
-## Workers Builds (GitHub to Worker)
-
-In **Workers & Pages > Create > Worker > Import a repository**, connect `zsdaniel105/hotel-ops-web`. Despite the dashboard section name, create a Worker, not a Pages project.
-
-- Worker name: `hotel-ops-web` (must match `wrangler.jsonc`).
-- Production branch: `main`.
-- Root directory: repository root.
-- Build command: `npm run build:vinext`.
-- Deploy command: `npx @vinext/cloudflare deploy --skip-build` if supported by the installed adapter; otherwise use `npx @vinext/cloudflare deploy` and leave the separate build command empty to avoid building twice.
-- Preview command: use the vinext/Cloudflare command generated by the initializer.
-- Runtime secret: set `ACCESS_AUD`; never commit it.
-- Bindings: keep them in `wrangler.jsonc`, not duplicated in the dashboard.
-
-Cloudflare normally creates the Builds API token during repository connection. If a custom token is used, it needs Workers Scripts edit, D1 edit, and R2 edit permissions.
-
-## Validation checklist
-
-```bash
-npm ci
-npm run lint
-npm run typecheck
-npm run test:run
-npm run build
-npm run build:vinext
-npx wrangler deploy --dry-run
-```
-
-Start the generated local Worker preview, request `/`, one emitted static asset, and `/api/v2/session`. The root must return the application rather than 404. The session route should return a controlled authentication response unless local development identity is explicitly configured.
+1. Create or connect the production D1 database.
+2. Create or connect the private R2 bucket.
+3. Add the required D1, R2, assets, secrets, and other bindings to the configuration generated by Cloudflare; use real resource identifiers rather than placeholders.
+4. Generate binding types as required by that generated configuration and apply the existing D1 migrations in `migrations/` to the connected production database.
+5. Configure Cloudflare Access and its audience/secret values without committing secrets.
+6. Validate the root application, a generated static asset, and `/api/v2/session` at the actual `*.workers.dev` deployment.
+7. Implement realtime behavior and Durable Objects later, after their handlers and migration plan exist. Do not add speculative Durable Object or cron bindings.
 
 ## Current limitations
 
-- The legacy UI remains on `localStorage`; it is not yet connected to D1 APIs.
-- D1 is not bound until the owner inserts the real ID returned by Cloudflare.
-- The R2 bucket is declared but attachment handlers/UI are not implemented.
-- Realtime and scheduled recurrence are deferred; no broken Durable Object or cron binding is deployed.
-- Production Cloudflare Access policy/audience setup remains owner-controlled.
-- Malware scanning is not implemented.
+- The visible prototype still uses `localStorage`; it is not yet connected to the D1 APIs.
+- D1 and R2 are intentionally not connected until Cloudflare has created the real Worker and generated its configuration.
+- Attachment handlers and UI, realtime synchronization, scheduled recurrence, and malware scanning are not implemented.
+- Production Cloudflare Access policy and audience setup remain owner-controlled.

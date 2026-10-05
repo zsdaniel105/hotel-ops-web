@@ -133,3 +133,7 @@ Request status tabs use `tablist`, `tab`, and `tabpanel` semantics with roving `
 ## Prototype limitations preserved
 
 This remains a single-browser prototype with demo roles and `localStorage` persistence only. It does not add authentication, a database, real-time synchronization, cross-device data, or a new product workflow.
+
+## Hotel Ops v2 server foundation
+
+The versioned D1 schema and initial authenticated APIs establish a Cloudflare production boundary without deleting the working prototype. See [architecture](docs/architecture.md) and the [Cloudflare deployment guide](docs/cloudflare-deployment.md) for exact status, security constraints, setup, and known limitations. D1 is the intended production authority; localStorage remains only in the unchanged prototype UI until each screen is connected and is never a server failure fallback.

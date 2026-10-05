@@ -1,0 +1,5 @@
+# Local-only identity. Copy to .dev.vars (ignored) and never enable LOCAL_DEV in production.
+LOCAL_DEV=true
+LOCAL_DEV_EMAIL=admin@example.test
+# Production Access policy/audience configuration
+ACCESS_AUD=

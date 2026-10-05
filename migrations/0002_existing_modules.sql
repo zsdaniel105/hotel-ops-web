@@ -1,0 +1,4 @@
+-- Durable server records for modules that predate the platform schema. Snapshot JSON
+-- preserves signed/template state while indexed columns support operational queues.
+CREATE TABLE module_records (id TEXT PRIMARY KEY, property_id TEXT NOT NULL REFERENCES properties(id), module TEXT NOT NULL CHECK(module IN('LOST_FOUND','ROOM_PM','FRONT_DESK_CHECKLIST','SHIFT_HANDOFF','ANNOUNCEMENT','INCIDENT')), status TEXT NOT NULL, title TEXT NOT NULL, room_identifier TEXT, sensitive INTEGER NOT NULL DEFAULT 0, payload_json TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES users(id), updated_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, version INTEGER NOT NULL DEFAULT 1);
+CREATE INDEX module_records_queue ON module_records(property_id,module,status,created_at); CREATE INDEX module_records_room ON module_records(property_id,room_identifier,module);

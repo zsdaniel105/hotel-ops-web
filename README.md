@@ -1,6 +1,6 @@
 # Hotel Ops Web
 
-A Netlify-ready Next.js App Router demo for a compact hotel operations dashboard prototype.
+A Next.js App Router hotel operations prototype with a Cloudflare Workers server foundation.
 
 ## New prototype features
 
@@ -90,6 +90,8 @@ npm install
 npm run dev
 ```
 
+The normal Next.js development workflow remains available while the Workers runtime is initialized separately. Production is **Cloudflare Workers only**; the retired `hotel-ops-web.pages.dev` Cloudflare Pages site is not a deployment target.
+
 ## Quality checks
 
 ```bash
@@ -101,7 +103,7 @@ npm run check
 
 ## Prototype limitations
 
-This prototype intentionally does not include real authentication, employee accounts, a database, cross-device sharing, real-time synchronization, push/email/SMS notifications, individual employee assignment, comments or chat, photos, attachments, inventory deductions, automatic SLA escalation, API routes, server actions, editable Lost & Found, editable Calendar, editable Announcements, PMS integration, native applications, PWA installation, or production persistence.
+The visible prototype is not yet wired to production authentication, D1 persistence, cross-device sharing, realtime synchronization, or R2 attachments. PR #28 added a versioned D1 schema and initial authenticated API routes, but the current screens still read and write browser-local state. Remaining v2 modules and production Access setup are planned rather than implied to be complete.
 
 ## Automated Testing
 
@@ -116,7 +118,7 @@ npm run build
 npm run check
 ```
 
-`npm test` starts Vitest watch mode for development. `npm run test:run` executes the regression suite once for CI-style validation. `npm run build` runs `prebuild`, so the Vitest regression suite executes before `next build`. Netlify uses `npm run build`, which means production deployment is blocked when tests fail. `npm run check` is the full local gate: lint, typecheck, test run through `prebuild`, and production compilation.
+`npm test` starts Vitest watch mode for development. `npm run test:run` executes the regression suite once for CI-style validation. `npm run build` runs `prebuild`, so the Vitest regression suite executes before `next build`. `npm run check` is the full local gate: lint, typecheck, test run through `prebuild`, and production compilation.
 
 ## Coverage Areas
 
